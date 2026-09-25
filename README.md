@@ -11,9 +11,15 @@ LoadModule protect_module modules/mod_protect.so
 
 ProtectMaxConcurrentPerIP 20
 ProtectMaxConcurrentPerVHost 80
+
+# Optional additional log containing only requests rejected by mod_protect.
+# The Apache user must be able to write this file.
+ProtectLog /var/log/apache2/protect.log
 ```
 
 The concurrent limits apply to active HTTP requests, not TCP connections. A request is rejected with HTTP 429 when accepting it would exceed the configured limit.
+
+`ProtectLog` is optional. When configured, every request rejected by a concurrent or request-rate limit is also appended to that file. The normal Apache error log is still used as before.
 
 Request-rate protection uses per-client-IP counters:
 
