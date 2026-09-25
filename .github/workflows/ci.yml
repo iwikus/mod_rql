@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Apache development packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y apache2 apache2-dev build-essential curl
+
+      - name: Build module
+        run: |
+          apxs -c -I. mod_rql.c rql_scoreboard.c
+
+      - name: Smoke test
+        run: |
+          test -f .libs/mod_rql.so
+          apxs -q CFLAGS
+          apache2ctl -v
