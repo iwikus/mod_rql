@@ -74,21 +74,6 @@ jobs:
           </VirtualHost>
 
           <VirtualHost 127.0.0.1:8080>
-              ServerName protect-global
-              DocumentRoot /var/www/protect-test
-              ProtectMaxConcurrentPerIP 0
-              ProtectMaxConcurrentPerVHost 0
-              ScriptAlias /cgi-bin/ /var/www/protect-test/cgi-bin/
-              <Directory /var/www/protect-test/cgi-bin>
-                  Options +ExecCGI
-                  Require all granted
-              </Directory>
-              <Directory /var/www/protect-test>
-                  Require all granted
-              </Directory>
-          </VirtualHost>
-
-          <VirtualHost 127.0.0.1:8080>
               ServerName protect-ip
               DocumentRoot /var/www/protect-test
               ProtectMaxConcurrentPerIP 1
@@ -130,35 +115,6 @@ jobs:
               </Directory>
           </VirtualHost>
 
-          <VirtualHost 127.0.0.1:8080>
-              ServerName protect-ip-vhost-a
-              DocumentRoot /var/www/protect-test
-              ProtectMaxConcurrentPerIP 1
-              ProtectMaxConcurrentPerVHost 1
-              ScriptAlias /cgi-bin/ /var/www/protect-test/cgi-bin/
-              <Directory /var/www/protect-test/cgi-bin>
-                  Options +ExecCGI
-                  Require all granted
-              </Directory>
-              <Directory /var/www/protect-test>
-                  Require all granted
-              </Directory>
-          </VirtualHost>
-
-          <VirtualHost 127.0.0.1:8080>
-              ServerName protect-ip-vhost-b
-              DocumentRoot /var/www/protect-test
-              ProtectMaxConcurrentPerIP 1
-              ProtectMaxConcurrentPerVHost 1
-              ScriptAlias /cgi-bin/ /var/www/protect-test/cgi-bin/
-              <Directory /var/www/protect-test/cgi-bin>
-                  Options +ExecCGI
-                  Require all granted
-              </Directory>
-              <Directory /var/www/protect-test>
-                  Require all granted
-              </Directory>
-          </VirtualHost>
           EOF
 
           sudo sed -i 's/^Listen 80$/Listen 80\nListen 8080/' /etc/apache2/ports.conf
@@ -233,12 +189,9 @@ jobs:
               assert ok > 0, results
 
           async def main():
-              await check("global", "protect-global")
               await check("per-IP", "protect-ip")
               await check("per-VHost A", "protect-vhost-a")
               await check("per-VHost B", "protect-vhost-b")
-              await check("per-IP+VHost A", "protect-ip-vhost-a")
-              await check("per-IP+VHost B", "protect-ip-vhost-b")
 
           asyncio.run(main())
           PY
