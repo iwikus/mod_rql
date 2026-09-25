@@ -22,10 +22,10 @@ apxs -i -a mod_rql.la
 ```apache
 LoadModule rql_module modules/mod_rql.so
 
-RQLMaxActiveRequests 100
-RQLMaxActiveRequestsPerIP 20
-RQLMaxActiveRequestsPerVHost 80
-RQLMaxActiveRequestsPerIPVHost 10
+RQLMaxActive 100
+RQLMaxActivePerIP 20
+RQLMaxActivePerVHost 80
+RQLMaxActivePerIPAndVHost 10
 ```
 
 A configured limit is inclusive: a request is rejected with HTTP 429 when accepting it would exceed the configured concurrent-request limit.
