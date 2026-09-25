@@ -92,12 +92,12 @@ static int rql_fixups(request_rec *r)
         return DECLINED;
     }
 
-    if ((cfg->max_active && counts.global >= (unsigned long)cfg->max_active) ||
-        (cfg->max_active_ip && counts.ip >= (unsigned long)cfg->max_active_ip) ||
+    if ((cfg->max_active && counts.global > (unsigned long)cfg->max_active) ||
+        (cfg->max_active_ip && counts.ip > (unsigned long)cfg->max_active_ip) ||
         (cfg->max_active_vhost &&
-         counts.vhost >= (unsigned long)cfg->max_active_vhost) ||
+         counts.vhost > (unsigned long)cfg->max_active_vhost) ||
         (cfg->max_active_ip_vhost &&
-         counts.ip_vhost >= (unsigned long)cfg->max_active_ip_vhost)) {
+         counts.ip_vhost > (unsigned long)cfg->max_active_ip_vhost)) {
 
         ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(10002)
                       "mod_rql: request limit exceeded: ip=%s vhost=%s "
