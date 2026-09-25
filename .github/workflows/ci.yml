@@ -18,22 +18,22 @@ jobs:
 
       - name: Build module
         run: |
-          apxs -c -I. mod_rql.c rql_scoreboard.c
+          apxs -c -I. mod_protect.c protect_scoreboard.c
           test -f .libs/mod_rql.so
 
       - name: Install module
         run: |
-          sudo apxs -i -a -n rql mod_rql.la
+          sudo apxs -i -a -n protect mod_protect.la
 
       - name: Configure test server
         run: |
           sudo a2dismod mpm_event || true
           sudo a2enmod mpm_prefork
           sudo a2enmod cgid
-          sudo mkdir -p /var/www/rql-test/cgi-bin
-          echo 'OK' | sudo tee /var/www/rql-test/index.html >/dev/null
+          sudo mkdir -p /var/www/protect-test/cgi-bin
+          echo 'OK' | sudo tee /var/www/protect-test/index.html >/dev/null
 
-          sudo sh -c 'cat > /var/www/rql-test/cgi-bin/slow.py' <<'EOF'
+          sudo sh -c 'cat > /var/www/protect-test/cgi-bin/slow.py' <<'EOF'
           #!/usr/bin/python3
           import time
 
@@ -42,119 +42,120 @@ jobs:
           time.sleep(3)
           print("OK")
           EOF
-          sudo chmod 755 /var/www/rql-test/cgi-bin/slow.py
+          sudo chmod 755 /var/www/protect-test/cgi-bin/slow.py
 
-          sudo sh -c 'cat > /var/www/rql-test/cgi-bin/fast.py' <<'EOF'
+          sudo sh -c 'cat > /var/www/protect-test/cgi-bin/fast.py' <<'EOF'
           #!/usr/bin/python3
           print("Content-Type: text/plain")
           print()
           print("OK")
           EOF
-          sudo chmod 755 /var/www/rql-test/cgi-bin/fast.py
+          sudo chmod 755 /var/www/protect-test/cgi-bin/fast.py
 
-          sudo sh -c 'cat > /etc/apache2/sites-available/rql-test.conf' <<'EOF'
+          sudo sh -c 'cat > /etc/apache2/sites-available/protect-test.conf' <<'EOF'
           ExtendedStatus On
 
           <VirtualHost 127.0.0.1:8080>
-              ServerName rql-test
-              DocumentRoot /var/www/rql-test
+              ServerName protect-test
+              DocumentRoot /var/www/protect-test
 
               RQLMaxActive 0
-              RQLMaxActivePerIP 0
-              RQLMaxActivePerVHost 0
-              RQLMaxActivePerIPAndVHost 0
+              ProtectMaxConcurrentPerIP 0
+              ProtectMaxConcurrentPerVHost 0
+              ProtectMaxConcurrentPerIPAndVHost 0
 
-              ScriptAlias /cgi-bin/ /var/www/rql-test/cgi-bin/
-              <Directory /var/www/rql-test/cgi-bin>
+              ScriptAlias /cgi-bin/ /var/www/protect-test/cgi-bin/
+              <Directory /var/www/protect-test/cgi-bin>
                   Options +ExecCGI
                   Require all granted
               </Directory>
 
-              <Directory /var/www/rql-test>
+              <Directory /var/www/protect-test>
                   Require all granted
               </Directory>
           </VirtualHost>
 
           <VirtualHost 127.0.0.1:8080>
-              ServerName rql-global
-              DocumentRoot /var/www/rql-test
-              RQLMaxActive 1
-              ScriptAlias /cgi-bin/ /var/www/rql-test/cgi-bin/
-              <Directory /var/www/rql-test/cgi-bin>
+              ServerName protect-global
+              DocumentRoot /var/www/protect-test
+              ProtectMaxConcurrentPerIP 0
+              ProtectMaxConcurrentPerVHost 1
+              ScriptAlias /cgi-bin/ /var/www/protect-test/cgi-bin/
+              <Directory /var/www/protect-test/cgi-bin>
                   Options +ExecCGI
                   Require all granted
               </Directory>
-              <Directory /var/www/rql-test>
+              <Directory /var/www/protect-test>
                   Require all granted
               </Directory>
           </VirtualHost>
 
           <VirtualHost 127.0.0.1:8080>
-              ServerName rql-ip
-              DocumentRoot /var/www/rql-test
-              RQLMaxActivePerIP 1
-              ScriptAlias /cgi-bin/ /var/www/rql-test/cgi-bin/
-              <Directory /var/www/rql-test/cgi-bin>
+              ServerName protect-ip
+              DocumentRoot /var/www/protect-test
+              ProtectMaxConcurrentPerIP 1
+              ScriptAlias /cgi-bin/ /var/www/protect-test/cgi-bin/
+              <Directory /var/www/protect-test/cgi-bin>
                   Options +ExecCGI
                   Require all granted
               </Directory>
-              <Directory /var/www/rql-test>
+              <Directory /var/www/protect-test>
                   Require all granted
               </Directory>
           </VirtualHost>
 
           <VirtualHost 127.0.0.1:8080>
-              ServerName rql-vhost-a
-              DocumentRoot /var/www/rql-test
-              RQLMaxActivePerVHost 1
-              ScriptAlias /cgi-bin/ /var/www/rql-test/cgi-bin/
-              <Directory /var/www/rql-test/cgi-bin>
+              ServerName protect-vhost-a
+              DocumentRoot /var/www/protect-test
+              ProtectMaxConcurrentPerVHost 1
+              ScriptAlias /cgi-bin/ /var/www/protect-test/cgi-bin/
+              <Directory /var/www/protect-test/cgi-bin>
                   Options +ExecCGI
                   Require all granted
               </Directory>
-              <Directory /var/www/rql-test>
+              <Directory /var/www/protect-test>
                   Require all granted
               </Directory>
           </VirtualHost>
 
           <VirtualHost 127.0.0.1:8080>
-              ServerName rql-vhost-b
-              DocumentRoot /var/www/rql-test
-              RQLMaxActivePerVHost 1
-              ScriptAlias /cgi-bin/ /var/www/rql-test/cgi-bin/
-              <Directory /var/www/rql-test/cgi-bin>
+              ServerName protect-vhost-b
+              DocumentRoot /var/www/protect-test
+              ProtectMaxConcurrentPerVHost 1
+              ScriptAlias /cgi-bin/ /var/www/protect-test/cgi-bin/
+              <Directory /var/www/protect-test/cgi-bin>
                   Options +ExecCGI
                   Require all granted
               </Directory>
-              <Directory /var/www/rql-test>
+              <Directory /var/www/protect-test>
                   Require all granted
               </Directory>
           </VirtualHost>
 
           <VirtualHost 127.0.0.1:8080>
-              ServerName rql-ip-vhost-a
-              DocumentRoot /var/www/rql-test
-              RQLMaxActivePerIPAndVHost 1
-              ScriptAlias /cgi-bin/ /var/www/rql-test/cgi-bin/
-              <Directory /var/www/rql-test/cgi-bin>
+              ServerName protect-ip-vhost-a
+              DocumentRoot /var/www/protect-test
+              ProtectMaxConcurrentPerIPAndVHost 1
+              ScriptAlias /cgi-bin/ /var/www/protect-test/cgi-bin/
+              <Directory /var/www/protect-test/cgi-bin>
                   Options +ExecCGI
                   Require all granted
               </Directory>
-              <Directory /var/www/rql-test>
+              <Directory /var/www/protect-test>
                   Require all granted
               </Directory>
           </VirtualHost>
 
           <VirtualHost 127.0.0.1:8080>
-              ServerName rql-ip-vhost-b
-              DocumentRoot /var/www/rql-test
-              RQLMaxActivePerIPAndVHost 1
-              ScriptAlias /cgi-bin/ /var/www/rql-test/cgi-bin/
-              <Directory /var/www/rql-test/cgi-bin>
+              ServerName protect-ip-vhost-b
+              DocumentRoot /var/www/protect-test
+              ProtectMaxConcurrentPerIPAndVHost 1
+              ScriptAlias /cgi-bin/ /var/www/protect-test/cgi-bin/
+              <Directory /var/www/protect-test/cgi-bin>
                   Options +ExecCGI
                   Require all granted
               </Directory>
-              <Directory /var/www/rql-test>
+              <Directory /var/www/protect-test>
                   Require all granted
               </Directory>
           </VirtualHost>
@@ -162,7 +163,7 @@ jobs:
 
           sudo sed -i 's/^Listen 80$/Listen 80\nListen 8080/' /etc/apache2/ports.conf
           sudo a2dissite 000-default
-          sudo a2ensite rql-test
+          sudo a2ensite protect-test
           sudo apache2ctl configtest
 
       - name: Start Apache
@@ -170,11 +171,11 @@ jobs:
           sudo install -d -o root -g root -m 0755 /var/run/apache2
           sudo service apache2 start
           sleep 1
-          curl -fsS -H 'Host: rql-test' http://127.0.0.1:8080/
+          curl -fsS -H 'Host: protect-test' http://127.0.0.1:8080/
 
       - name: Verify module is loaded
         run: |
-          apache2ctl -M | grep rql_module
+          apache2ctl -M | grep protect_module
 
       - name: Install Python test dependencies
         run: |
@@ -232,12 +233,12 @@ jobs:
               assert ok > 0, results
 
           async def main():
-              await check("global", "rql-global")
-              await check("per-IP", "rql-ip")
-              await check("per-VHost A", "rql-vhost-a")
-              await check("per-VHost B", "rql-vhost-b")
-              await check("per-IP+VHost A", "rql-ip-vhost-a")
-              await check("per-IP+VHost B", "rql-ip-vhost-b")
+              await check("global", "protect-global")
+              await check("per-IP", "protect-ip")
+              await check("per-VHost A", "protect-vhost-a")
+              await check("per-VHost B", "protect-vhost-b")
+              await check("per-IP+VHost A", "protect-ip-vhost-a")
+              await check("per-IP+VHost B", "protect-ip-vhost-b")
 
           asyncio.run(main())
           PY
@@ -249,7 +250,7 @@ jobs:
           import http.client
 
           conn = http.client.HTTPConnection("127.0.0.1", 8080)
-          headers = {"Host": "rql-ip"}
+          headers = {"Host": "protect-ip"}
           conn.request("GET", "/cgi-bin/fast.py", headers=headers)
           first = conn.getresponse()
           first.read()
@@ -265,7 +266,7 @@ jobs:
 
       - name: ApacheBench basic smoke test
         run: |
-          ab -n 20 -c 5 -H 'Host: rql-test' http://127.0.0.1:8080/
+          ab -n 20 -c 5 -H 'Host: protect-test' http://127.0.0.1:8080/
 
       - name: Check Apache error log for unexpected startup errors
         run: |
