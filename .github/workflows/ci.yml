@@ -186,8 +186,8 @@ jobs:
           done
           wait
           cat /tmp/global-*.code
-          grep -qx '200' /tmp/global-*.code
-          grep -qx '429' /tmp/global-*.code
+          cat /tmp/global-*.code | grep -qx '200'
+          cat /tmp/global-*.code | grep -qx '429'
 
       - name: Test per-IP active-request limit
         run: |
@@ -200,8 +200,8 @@ jobs:
           done
           wait
           cat /tmp/ip-*.code
-          grep -qx '200' /tmp/ip-*.code
-          grep -qx '429' /tmp/ip-*.code
+          cat /tmp/ip-*.code | grep -qx '200'
+          cat /tmp/ip-*.code | grep -qx '429'
 
       - name: Test per-VHost limits independently
         run: |
