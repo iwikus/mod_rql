@@ -1,36 +1,32 @@
-# mod_rql
+# mod_protect
 
 Apache HTTP Server request limiter.
 
-The module limits concurrent requests using the Apache scoreboard as the source of truth. It can limit requests globally, per client IP, per virtual host, and per IP + virtual host.
-
-## Current status
-
-Initial development. The first implementation focuses on correct scoreboard-based concurrent-request accounting.
-
-## Build
-
-Requires Apache 2.4 development headers and `apxs`.
-
-```sh
-apxs -c -I. mod_rql.c rql_scoreboard.c
-apxs -i -a mod_rql.la
-```
+The module limits concurrent HTTP requests using the Apache scoreboard as the source of truth.
 
 ## Configuration
 
 ```apache
-LoadModule rql_module modules/mod_rql.so
+LoadModule protect_module modules/mod_protect.so
 
-RQLMaxActive 100
-RQLMaxActivePerIP 20
-RQLMaxActivePerVHost 80
-RQLMaxActivePerIPAndVHost 10
+ProtectMaxConcurrentPerIP 20
+ProtectMaxConcurrentPerVHost 80
 ```
 
-A configured limit is inclusive: a request is rejected with HTTP 429 when accepting it would exceed the configured concurrent-request limit.
+The concurrent limits apply to active HTTP requests, not TCP connections. A request is rejected with HTTP 429 when accepting it would exceed the configured limit.
 
-Rate limiting will be added separately.
+Planned request-rate protection follows the terminology used by mod_evasive:
+
+```apache
+ProtectPageCount 20
+ProtectPageInterval 1
+
+ProtectPageDynamicCount 10
+ProtectPageDynamicInterval 1
+
+ProtectSiteCount 100
+ProtectSiteInterval 1
+```
 
 ## Design
 
