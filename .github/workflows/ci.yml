@@ -14,7 +14,7 @@ jobs:
       - name: Install Apache and development packages
         run: |
           sudo apt-get update
-          sudo apt-get install -y apache2 apache2-dev apache2-utils build-essential
+          sudo apt-get install -y apache2 apache2-dev apache2-utils build-essential python3
 
       - name: Build module
         run: |
@@ -43,13 +43,25 @@ jobs:
           EOF
           sudo chmod 755 /var/www/rql-test/cgi-bin/slow.py
 
+          sudo sh -c 'cat > /var/www/rql-test/cgi-bin/fast.py' <<'EOF'
+          #!/usr/bin/python3
+          print("Content-Type: text/plain")
+          print()
+          print("OK")
+          EOF
+          sudo chmod 755 /var/www/rql-test/cgi-bin/fast.py
+
           sudo sh -c 'cat > /etc/apache2/sites-available/rql-test.conf' <<'EOF'
+          ExtendedStatus On
+
           <VirtualHost 127.0.0.1:8080>
               ServerName rql-test
               DocumentRoot /var/www/rql-test
 
-              ExtendedStatus On
-              RQLMaxActivePerIP 2
+              RQLMaxActive 0
+              RQLMaxActivePerIP 0
+              RQLMaxActivePerVHost 0
+              RQLMaxActivePerIPAndVHost 0
 
               ScriptAlias /cgi-bin/ /var/www/rql-test/cgi-bin/
               <Directory /var/www/rql-test/cgi-bin>
@@ -57,6 +69,90 @@ jobs:
                   Require all granted
               </Directory>
 
+              <Directory /var/www/rql-test>
+                  Require all granted
+              </Directory>
+          </VirtualHost>
+
+          <VirtualHost 127.0.0.1:8080>
+              ServerName rql-global
+              DocumentRoot /var/www/rql-test
+              RQLMaxActive 1
+              ScriptAlias /cgi-bin/ /var/www/rql-test/cgi-bin/
+              <Directory /var/www/rql-test/cgi-bin>
+                  Options +ExecCGI
+                  Require all granted
+              </Directory>
+              <Directory /var/www/rql-test>
+                  Require all granted
+              </Directory>
+          </VirtualHost>
+
+          <VirtualHost 127.0.0.1:8080>
+              ServerName rql-ip
+              DocumentRoot /var/www/rql-test
+              RQLMaxActivePerIP 1
+              ScriptAlias /cgi-bin/ /var/www/rql-test/cgi-bin/
+              <Directory /var/www/rql-test/cgi-bin>
+                  Options +ExecCGI
+                  Require all granted
+              </Directory>
+              <Directory /var/www/rql-test>
+                  Require all granted
+              </Directory>
+          </VirtualHost>
+
+          <VirtualHost 127.0.0.1:8080>
+              ServerName rql-vhost-a
+              DocumentRoot /var/www/rql-test
+              RQLMaxActivePerVHost 1
+              ScriptAlias /cgi-bin/ /var/www/rql-test/cgi-bin/
+              <Directory /var/www/rql-test/cgi-bin>
+                  Options +ExecCGI
+                  Require all granted
+              </Directory>
+              <Directory /var/www/rql-test>
+                  Require all granted
+              </Directory>
+          </VirtualHost>
+
+          <VirtualHost 127.0.0.1:8080>
+              ServerName rql-vhost-b
+              DocumentRoot /var/www/rql-test
+              RQLMaxActivePerVHost 1
+              ScriptAlias /cgi-bin/ /var/www/rql-test/cgi-bin/
+              <Directory /var/www/rql-test/cgi-bin>
+                  Options +ExecCGI
+                  Require all granted
+              </Directory>
+              <Directory /var/www/rql-test>
+                  Require all granted
+              </Directory>
+          </VirtualHost>
+
+          <VirtualHost 127.0.0.1:8080>
+              ServerName rql-ip-vhost-a
+              DocumentRoot /var/www/rql-test
+              RQLMaxActivePerIPAndVHost 1
+              ScriptAlias /cgi-bin/ /var/www/rql-test/cgi-bin/
+              <Directory /var/www/rql-test/cgi-bin>
+                  Options +ExecCGI
+                  Require all granted
+              </Directory>
+              <Directory /var/www/rql-test>
+                  Require all granted
+              </Directory>
+          </VirtualHost>
+
+          <VirtualHost 127.0.0.1:8080>
+              ServerName rql-ip-vhost-b
+              DocumentRoot /var/www/rql-test
+              RQLMaxActivePerIPAndVHost 1
+              ScriptAlias /cgi-bin/ /var/www/rql-test/cgi-bin/
+              <Directory /var/www/rql-test/cgi-bin>
+                  Options +ExecCGI
+                  Require all granted
+              </Directory>
               <Directory /var/www/rql-test>
                   Require all granted
               </Directory>
@@ -73,25 +169,94 @@ jobs:
           sudo install -d -o root -g root -m 0755 /var/run/apache2
           sudo service apache2 start
           sleep 1
-          curl -fsS http://127.0.0.1:8080/
-
-      - name: ApacheBench basic smoke test
-        run: |
-          ab -n 20 -c 5 http://127.0.0.1:8080/
-
-      - name: ApacheBench request-limit test
-        run: |
-          set -o pipefail
-          ab -n 20 -c 10 http://127.0.0.1:8080/cgi-bin/slow.py | tee /tmp/ab.txt
-          failed=$(awk '/Failed requests:/ {print $3}' /tmp/ab.txt)
-          requests=$(awk '/Complete requests:/ {print $3}' /tmp/ab.txt)
-          echo "Complete requests: $requests"
-          echo "Failed requests: $failed"
-          test "$failed" -gt 0
-
-          status_429=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/cgi-bin/slow.py || true)
-          echo "Single request after load returned HTTP $status_429"
+          curl -fsS -H 'Host: rql-test' http://127.0.0.1:8080/
 
       - name: Verify module is loaded
         run: |
           apache2ctl -M | grep rql_module
+
+      - name: Test global active-request limit and HTTP 429
+        run: |
+          set -e
+          rm -f /tmp/global-*.code
+          for i in 1 2 3 4 5; do
+            curl -sS -o /dev/null -w '%{http_code}\n' \
+              -H 'Host: rql-global' \
+              http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/global-$i.code &
+          done
+          wait
+          cat /tmp/global-*.code
+          grep -qx '200' /tmp/global-*.code
+          grep -qx '429' /tmp/global-*.code
+
+      - name: Test per-IP active-request limit
+        run: |
+          set -e
+          rm -f /tmp/ip-*.code
+          for i in 1 2 3 4 5; do
+            curl -sS -o /dev/null -w '%{http_code}\n' \
+              -H 'Host: rql-ip' \
+              http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/ip-$i.code &
+          done
+          wait
+          cat /tmp/ip-*.code
+          grep -qx '200' /tmp/ip-*.code
+          grep -qx '429' /tmp/ip-*.code
+
+      - name: Test per-VHost limits independently
+        run: |
+          set -e
+          rm -f /tmp/vhost-*.code
+          curl -sS -o /dev/null -w '%{http_code}\n'             -H 'Host: rql-vhost-a'             http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/vhost-a.code &
+          pid_a=$!
+          curl -sS -o /dev/null -w '%{http_code}\n'             -H 'Host: rql-vhost-b'             http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/vhost-b.code &
+          pid_b=$!
+          wait "$pid_a"
+          wait "$pid_b"
+          cat /tmp/vhost-*.code
+          grep -qx '200' /tmp/vhost-a.code
+          grep -qx '200' /tmp/vhost-b.code
+
+      - name: Test per-IP-and-VHost limits independently
+        run: |
+          set -e
+          rm -f /tmp/ip-vhost-*.code
+          curl -sS -o /dev/null -w '%{http_code}\n'             -H 'Host: rql-ip-vhost-a'             http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/ip-vhost-a.code &
+          pid_a=$!
+          curl -sS -o /dev/null -w '%{http_code}\n'             -H 'Host: rql-ip-vhost-b'             http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/ip-vhost-b.code &
+          pid_b=$!
+          wait "$pid_a"
+          wait "$pid_b"
+          cat /tmp/ip-vhost-*.code
+          grep -qx '200' /tmp/ip-vhost-a.code
+          grep -qx '200' /tmp/ip-vhost-b.code
+
+      - name: Test keepalive is not counted as active
+        run: |
+          set -e
+          python3 - <<'PY'
+          import http.client
+
+          conn = http.client.HTTPConnection("127.0.0.1", 8080)
+          headers = {"Host": "rql-ip"}
+          conn.request("GET", "/cgi-bin/fast.py", headers=headers)
+          first = conn.getresponse()
+          first.read()
+          assert first.status == 200, first.status
+
+          conn.request("GET", "/cgi-bin/fast.py", headers=headers)
+          second = conn.getresponse()
+          second.read()
+          assert second.status == 200, second.status
+
+          conn.close()
+          PY
+
+      - name: ApacheBench basic smoke test
+        run: |
+          ab -n 20 -c 5 -H 'Host: rql-test' http://127.0.0.1:8080/
+
+      - name: Check Apache error log for unexpected startup errors
+        run: |
+          sudo tail -n 100 /var/log/apache2/error.log
+          ! sudo grep -E '\[emerg\]|\[alert\]' /var/log/apache2/error.log
