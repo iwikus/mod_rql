@@ -69,7 +69,8 @@ jobs:
 
       - name: Start Apache
         run: |
-          sudo apache2ctl start
+          sudo install -d -o root -g root -m 0755 /var/run/apache2
+          sudo service apache2 start
           sleep 1
           curl -fsS http://127.0.0.1:8080/
 
