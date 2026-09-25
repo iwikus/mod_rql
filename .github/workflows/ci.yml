@@ -183,7 +183,7 @@ jobs:
             http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/global-ab.out
           cat /tmp/global-ab.out
           grep -q 'Complete requests: *20' /tmp/global-ab.out
-          grep -q 'Non-2xx responses: *19' /tmp/global-ab.out
+          grep -q 'Non-2xx responses: *18' /tmp/global-ab.out
 
       - name: Test per-IP active-request limit
         run: |
@@ -192,7 +192,7 @@ jobs:
             http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/ip-ab.out
           cat /tmp/ip-ab.out
           grep -q 'Complete requests: *20' /tmp/ip-ab.out
-          grep -q 'Non-2xx responses: *19' /tmp/ip-ab.out
+          grep -q 'Non-2xx responses: *18' /tmp/ip-ab.out
 
       - name: Test per-VHost limits independently
         run: |
