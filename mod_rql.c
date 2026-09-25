@@ -48,16 +48,16 @@ static const char *rql_set_limit(cmd_parms *cmd, void *dummy,
         return "mod_rql: limit must be a non-negative integer";
     }
 
-    if (!strcmp(cmd->cmd->name, "RQLMaxActiveRequests")) {
+    if (!strcmp(cmd->cmd->name, "RQLMaxActive")) {
         cfg->max_active = value;
     }
-    else if (!strcmp(cmd->cmd->name, "RQLMaxActiveRequestsPerIP")) {
+    else if (!strcmp(cmd->cmd->name, "RQLMaxActivePerIP")) {
         cfg->max_active_ip = value;
     }
-    else if (!strcmp(cmd->cmd->name, "RQLMaxActiveRequestsPerVHost")) {
+    else if (!strcmp(cmd->cmd->name, "RQLMaxActivePerVHost")) {
         cfg->max_active_vhost = value;
     }
-    else if (!strcmp(cmd->cmd->name, "RQLMaxActiveRequestsPerIPVHost")) {
+    else if (!strcmp(cmd->cmd->name, "RQLMaxActivePerIPAndVHost")) {
         cfg->max_active_ip_vhost = value;
     }
 
@@ -115,13 +115,13 @@ static int rql_fixups(request_rec *r)
 }
 
 static const command_rec rql_cmds[] = {
-    AP_INIT_TAKE1("RQLMaxActiveRequests", rql_set_limit, NULL, RSRC_CONF,
+    AP_INIT_TAKE1("RQLMaxActive", rql_set_limit, NULL, RSRC_CONF,
                   "Maximum concurrent active requests globally"),
-    AP_INIT_TAKE1("RQLMaxActiveRequestsPerIP", rql_set_limit, NULL, RSRC_CONF,
+    AP_INIT_TAKE1("RQLMaxActivePerIP", rql_set_limit, NULL, RSRC_CONF,
                   "Maximum concurrent active requests per client IP"),
-    AP_INIT_TAKE1("RQLMaxActiveRequestsPerVHost", rql_set_limit, NULL, RSRC_CONF,
+    AP_INIT_TAKE1("RQLMaxActivePerVHost", rql_set_limit, NULL, RSRC_CONF,
                   "Maximum concurrent active requests per virtual host"),
-    AP_INIT_TAKE1("RQLMaxActiveRequestsPerIPVHost", rql_set_limit, NULL, RSRC_CONF,
+    AP_INIT_TAKE1("RQLMaxActivePerIPAndVHost", rql_set_limit, NULL, RSRC_CONF,
                   "Maximum concurrent active requests per client IP and vhost"),
     { NULL }
 };
