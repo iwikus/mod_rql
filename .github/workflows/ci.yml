@@ -196,6 +196,31 @@ jobs:
           asyncio.run(main())
           PY
 
+      - name: Test request rate limits
+        run: |
+          python3 -c '
+          import time, urllib.request, urllib.error
+          def req(path):
+              r=urllib.request.Request("http://127.0.0.1:8080"+path, headers={"Host":"protect-rate"})
+              try:
+                  return urllib.request.urlopen(r).status
+              except urllib.error.HTTPError as e:
+                  return e.code
+          assert req("/") == 200
+          assert req("/") == 200
+          assert req("/") == 429
+          time.sleep(1.1)
+          assert req("/cgi-bin/fast.py") == 200
+          assert req("/cgi-bin/fast.py") == 200
+          assert req("/cgi-bin/fast.py") == 429
+          time.sleep(1.1)
+          assert req("/one") == 200
+          assert req("/two") == 200
+          assert req("/three") == 200
+          assert req("/four") == 200
+          assert req("/five") == 429
+          '
+
       - name: Test keepalive is not counted as active
         run: |
           set -e
