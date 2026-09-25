@@ -18,7 +18,7 @@ jobs:
 
       - name: Build module
         run: |
-          apxs -c -I. mod_protect.c protect_scoreboard.c
+          apxs -c -I. mod_protect.c protect_scoreboard.c protect_rate.c
           test -f .libs/mod_protect.so
 
       - name: Install module
