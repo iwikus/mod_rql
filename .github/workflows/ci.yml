@@ -176,45 +176,71 @@ jobs:
         run: |
           apache2ctl -M | grep rql_module
 
-      - name: Test global active-request limit and HTTP 429
+      - name: Install Python test dependencies
         run: |
-          set -e
-          ab -n 20 -c 5 -H 'Host: rql-global' \
-            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/global-ab.out
-          cat /tmp/global-ab.out
-          grep -q 'Complete requests: *20' /tmp/global-ab.out
-          grep -q 'Non-2xx responses: *18' /tmp/global-ab.out
+          python3 -m pip install --break-system-packages aiohttp
 
-      - name: Test per-IP active-request limit
+      - name: Test active request limits
         run: |
-          set -e
-          ab -n 20 -c 5 -H 'Host: rql-ip' \
-            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/ip-ab.out
-          cat /tmp/ip-ab.out
-          grep -q 'Complete requests: *20' /tmp/ip-ab.out
-          grep -q 'Non-2xx responses: *18' /tmp/ip-ab.out
+          python3 - <<'PY'
+          import asyncio
+          import aiohttp
 
-      - name: Test per-VHost limits independently
-        run: |
-          set -e
-          ab -n 2 -c 2 -H 'Host: rql-vhost-a' \
-            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/vhost-a.out
-          ab -n 2 -c 2 -H 'Host: rql-vhost-b' \
-            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/vhost-b.out
-          cat /tmp/vhost-a.out /tmp/vhost-b.out
-          grep -q 'Non-2xx responses: *1' /tmp/vhost-a.out
-          grep -q 'Non-2xx responses: *1' /tmp/vhost-b.out
+          TARGET = "http://127.0.0.1:8080/cgi-bin/slow.py"
+          N = 21
 
-      - name: Test per-IP-and-VHost limits independently
-        run: |
-          set -e
-          ab -n 2 -c 2 -H 'Host: rql-ip-vhost-a' \
-            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/ip-vhost-a.out
-          ab -n 2 -c 2 -H 'Host: rql-ip-vhost-b' \
-            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/ip-vhost-b.out
-          cat /tmp/ip-vhost-a.out /tmp/ip-vhost-b.out
-          grep -q 'Non-2xx responses: *1' /tmp/ip-vhost-a.out
-          grep -q 'Non-2xx responses: *1' /tmp/ip-vhost-b.out
+          async def fire(session, target, start_event, results, idx):
+              await start_event.wait()
+              try:
+                  async with session.get(target) as resp:
+                      results[idx] = resp.status
+                      await resp.read()
+              except Exception as exc:
+                  results[idx] = f"ERR: {exc}"
+
+          async def run_scenario(host, n=N):
+              start_event = asyncio.Event()
+              results = [None] * n
+
+              async with aiohttp.ClientSession(
+                  headers={"Host": host},
+                  connector=aiohttp.TCPConnector(limit=0),
+              ) as session:
+                  tasks = [
+                      asyncio.create_task(
+                          fire(session, TARGET, start_event, results, i)
+                      )
+                      for i in range(n)
+                  ]
+
+                  await asyncio.sleep(0.1)
+                  start_event.set()
+                  await asyncio.gather(*tasks)
+
+              return results
+
+          async def check(name, host):
+              results = await run_scenario(host)
+              ok = results.count(200)
+              limited = results.count(429)
+              other = [r for r in results if r not in (200, 429)]
+
+              print(f"{name}: 200={ok}, 429={limited}, other={other}")
+
+              assert not other, results
+              assert 0 < limited < N, results
+              assert 0 < ok <= 1 or ok > 1, results
+
+          async def main():
+              await check("global", "rql-global")
+              await check("per-IP", "rql-ip")
+              await check("per-VHost A", "rql-vhost-a")
+              await check("per-VHost B", "rql-vhost-b")
+              await check("per-IP+VHost A", "rql-ip-vhost-a")
+              await check("per-IP+VHost B", "rql-ip-vhost-b")
+
+          asyncio.run(main())
+          PY
 
       - name: Test keepalive is not counted as active
         run: |
