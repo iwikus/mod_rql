@@ -48,7 +48,7 @@ jobs:
               ServerName rql-test
               DocumentRoot /var/www/rql-test
 
-              RQLMaxActiveRequestsPerIP 2
+              RQLMaxActivePerIP 2
 
               ScriptAlias /cgi-bin/ /var/www/rql-test/cgi-bin/
               <Directory /var/www/rql-test/cgi-bin>
