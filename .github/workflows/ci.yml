@@ -116,19 +116,35 @@ jobs:
           </VirtualHost>
 
           <VirtualHost 127.0.0.1:8080>
-              ServerName protect-rate
+              ServerName protect-uri
               DocumentRoot /var/www/protect-test
               ProtectURICount 2
               ProtectURIInterval 1
+              <Directory /var/www/protect-test>
+                  Require all granted
+              </Directory>
+          </VirtualHost>
+
+          <VirtualHost 127.0.0.1:8080>
+              ServerName protect-dynamic
+              DocumentRoot /var/www/protect-test
               ProtectURIDynamicCount 2
               ProtectURIDynamicInterval 1
-              ProtectSiteCount 2
-              ProtectSiteInterval 1
               ScriptAlias /cgi-bin/ /var/www/protect-test/cgi-bin/
               <Directory /var/www/protect-test/cgi-bin>
                   Options +ExecCGI
                   Require all granted
               </Directory>
+              <Directory /var/www/protect-test>
+                  Require all granted
+              </Directory>
+          </VirtualHost>
+
+          <VirtualHost 127.0.0.1:8080>
+              ServerName protect-site
+              DocumentRoot /var/www/protect-test
+              ProtectSiteCount 2
+              ProtectSiteInterval 1
               <Directory /var/www/protect-test>
                   Require all granted
               </Directory>
@@ -219,23 +235,23 @@ jobs:
         run: |
           python3 -c '
           import time, urllib.request, urllib.error
-          def req(path):
-              r=urllib.request.Request("http://127.0.0.1:8080"+path, headers={"Host":"protect-rate"})
+          def req(host, path):
+              r=urllib.request.Request("http://127.0.0.1:8080"+path, headers={"Host":host})
               try:
                   return urllib.request.urlopen(r).status
               except urllib.error.HTTPError as e:
                   return e.code
-          assert req("/") == 200
-          assert req("/") == 200
-          assert req("/") == 429
+          assert req("protect-uri", "/") == 200
+          assert req("protect-uri", "/") == 200
+          assert req("protect-uri", "/") == 429
           time.sleep(1.1)
-          assert req("/cgi-bin/fast.py") == 200
-          assert req("/cgi-bin/fast.py") == 200
-          assert req("/cgi-bin/fast.py") == 429
+          assert req("protect-dynamic", "/cgi-bin/fast.py") == 200
+          assert req("protect-dynamic", "/cgi-bin/fast.py") == 200
+          assert req("protect-dynamic", "/cgi-bin/fast.py") == 429
           time.sleep(1.1)
-          assert req("/one") == 200
-          assert req("/two") == 200
-          assert req("/three") == 429
+          assert req("protect-site", "/one") == 404
+          assert req("protect-site", "/two") == 404
+          assert req("protect-site", "/three") == 429
           '
 
       - name: Test keepalive is not counted as active
