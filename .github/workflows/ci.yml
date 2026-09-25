@@ -115,6 +115,25 @@ jobs:
               </Directory>
           </VirtualHost>
 
+          <VirtualHost 127.0.0.1:8080>
+              ServerName protect-rate
+              DocumentRoot /var/www/protect-test
+              ProtectURICount 2
+              ProtectURIInterval 1
+              ProtectURIDynamicCount 2
+              ProtectURIDynamicInterval 1
+              ProtectSiteCount 10
+              ProtectSiteInterval 1
+              ScriptAlias /cgi-bin/ /var/www/protect-test/cgi-bin/
+              <Directory /var/www/protect-test/cgi-bin>
+                  Options +ExecCGI
+                  Require all granted
+              </Directory>
+              <Directory /var/www/protect-test>
+                  Require all granted
+              </Directory>
+          </VirtualHost>
+
           EOF
 
           sudo sed -i 's/^Listen 80$/Listen 80\nListen 8080/' /etc/apache2/ports.conf
