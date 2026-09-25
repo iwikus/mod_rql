@@ -6,22 +6,56 @@ on:
   pull_request:
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Apache development packages
+      - name: Install Apache and development packages
         run: |
           sudo apt-get update
-          sudo apt-get install -y apache2 apache2-dev build-essential curl
+          sudo apt-get install -y apache2 apache2-dev apache2-utils build-essential
 
       - name: Build module
         run: |
           apxs -c -I. mod_rql.c rql_scoreboard.c
-
-      - name: Smoke test
-        run: |
           test -f .libs/mod_rql.so
-          apxs -q CFLAGS
-          apache2ctl -v
+
+      - name: Install module
+        run: |
+          sudo apxs -i -a -n rql mod_rql.la
+
+      - name: Configure test server
+        run: |
+          sudo a2dismod mpm_event || true
+          sudo a2enmod mpm_prefork
+          sudo mkdir -p /var/www/rql-test
+          echo 'OK' | sudo tee /var/www/rql-test/index.html >/dev/null
+          sudo sh -c 'cat > /etc/apache2/sites-available/rql-test.conf' <<'EOF'
+          <VirtualHost 127.0.0.1:8080>
+              ServerName rql-test
+              DocumentRoot /var/www/rql-test
+              RQLMaxActiveRequestsPerIP 2
+              <Directory /var/www/rql-test>
+                  Require all granted
+              </Directory>
+          </VirtualHost>
+          EOF
+          sudo sed -i 's/^Listen 80$/Listen 80\nListen 8080/' /etc/apache2/ports.conf
+          sudo a2dissite 000-default
+          sudo a2ensite rql-test
+          sudo apache2ctl configtest
+
+      - name: Start Apache
+        run: |
+          sudo apache2ctl start
+          sleep 1
+          curl -fsS http://127.0.0.1:8080/
+
+      - name: ApacheBench smoke test
+        run: |
+          ab -n 100 -c 20 http://127.0.0.1:8080/
+
+      - name: Verify module is loaded
+        run: |
+          apache2ctl -M | grep rql_module
