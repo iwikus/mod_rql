@@ -229,7 +229,7 @@ jobs:
 
               assert not other, results
               assert 0 < limited < N, results
-              assert 0 < ok <= 1 or ok > 1, results
+              assert ok > 0, results
 
           async def main():
               await check("global", "rql-global")
