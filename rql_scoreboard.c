@@ -1,5 +1,6 @@
 #include "rql_scoreboard.h"
 
+#include <stdio.h>
 #include <string.h>
 
 static int rql_scoreboard_request_active(unsigned char status)
@@ -53,14 +54,22 @@ int rql_scoreboard_count(request_rec *r, rql_scoreboard_counts *counts)
             }
 
             if (r->server && r->server->server_hostname &&
-                ws.vhost[0] &&
-                strcmp(r->server->server_hostname, ws.vhost) == 0) {
-                ++counts->vhost;
+                r->connection && r->connection->local_addr &&
+                ws.vhost[0]) {
+                char vhost[sizeof(ws.vhost)];
 
-                if (r->connection && r->connection->client_ip &&
-                    ws.client64[0] &&
-                    strcmp(r->connection->client_ip, ws.client64) == 0) {
-                    ++counts->ip_vhost;
+                snprintf(vhost, sizeof(vhost), "%s:%d",
+                         r->server->server_hostname,
+                         r->connection->local_addr->port);
+
+                if (strcmp(vhost, ws.vhost) == 0) {
+                    ++counts->vhost;
+
+                    if (r->connection->client_ip &&
+                        ws.client64[0] &&
+                        strcmp(r->connection->client_ip, ws.client64) == 0) {
+                        ++counts->ip_vhost;
+                    }
                 }
             }
         }
