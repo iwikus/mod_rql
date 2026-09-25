@@ -122,7 +122,7 @@ jobs:
               ProtectURIInterval 1
               ProtectURIDynamicCount 2
               ProtectURIDynamicInterval 1
-              ProtectSiteCount 10
+              ProtectSiteCount 4
               ProtectSiteInterval 1
               ScriptAlias /cgi-bin/ /var/www/protect-test/cgi-bin/
               <Directory /var/www/protect-test/cgi-bin>
