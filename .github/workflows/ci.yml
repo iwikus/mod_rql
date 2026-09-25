@@ -29,18 +29,39 @@ jobs:
         run: |
           sudo a2dismod mpm_event || true
           sudo a2enmod mpm_prefork
-          sudo mkdir -p /var/www/rql-test
+          sudo a2enmod cgid
+          sudo mkdir -p /var/www/rql-test/cgi-bin
           echo 'OK' | sudo tee /var/www/rql-test/index.html >/dev/null
+
+          sudo sh -c 'cat > /var/www/rql-test/cgi-bin/slow.py' <<'EOF'
+          #!/usr/bin/python3
+          import time
+          print("Content-Type: text/plain")
+          print()
+          time.sleep(3)
+          print("OK")
+          EOF
+          sudo chmod 755 /var/www/rql-test/cgi-bin/slow.py
+
           sudo sh -c 'cat > /etc/apache2/sites-available/rql-test.conf' <<'EOF'
           <VirtualHost 127.0.0.1:8080>
               ServerName rql-test
               DocumentRoot /var/www/rql-test
+
               RQLMaxActiveRequestsPerIP 2
+
+              ScriptAlias /cgi-bin/ /var/www/rql-test/cgi-bin/
+              <Directory /var/www/rql-test/cgi-bin>
+                  Options +ExecCGI
+                  Require all granted
+              </Directory>
+
               <Directory /var/www/rql-test>
                   Require all granted
               </Directory>
           </VirtualHost>
           EOF
+
           sudo sed -i 's/^Listen 80$/Listen 80\nListen 8080/' /etc/apache2/ports.conf
           sudo a2dissite 000-default
           sudo a2ensite rql-test
@@ -52,9 +73,22 @@ jobs:
           sleep 1
           curl -fsS http://127.0.0.1:8080/
 
-      - name: ApacheBench smoke test
+      - name: ApacheBench basic smoke test
         run: |
-          ab -n 100 -c 20 http://127.0.0.1:8080/
+          ab -n 20 -c 5 http://127.0.0.1:8080/
+
+      - name: ApacheBench request-limit test
+        run: |
+          set -o pipefail
+          ab -n 20 -c 10 http://127.0.0.1:8080/cgi-bin/slow.py | tee /tmp/ab.txt
+          failed=$(awk '/Failed requests:/ {print $3}' /tmp/ab.txt)
+          requests=$(awk '/Complete requests:/ {print $3}' /tmp/ab.txt)
+          echo "Complete requests: $requests"
+          echo "Failed requests: $failed"
+          test "$failed" -gt 0
+
+          status_429=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/cgi-bin/slow.py || true)
+          echo "Single request after load returned HTTP $status_429"
 
       - name: Verify module is loaded
         run: |
