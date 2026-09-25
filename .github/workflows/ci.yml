@@ -122,7 +122,7 @@ jobs:
               ProtectURIInterval 1
               ProtectURIDynamicCount 2
               ProtectURIDynamicInterval 1
-              ProtectSiteCount 4
+              ProtectSiteCount 2
               ProtectSiteInterval 1
               ScriptAlias /cgi-bin/ /var/www/protect-test/cgi-bin/
               <Directory /var/www/protect-test/cgi-bin>
@@ -235,9 +235,7 @@ jobs:
           time.sleep(1.1)
           assert req("/one") == 200
           assert req("/two") == 200
-          assert req("/three") == 200
-          assert req("/four") == 200
-          assert req("/five") == 429
+          assert req("/three") == 429
           '
 
       - name: Test keepalive is not counted as active
