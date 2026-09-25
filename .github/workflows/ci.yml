@@ -35,28 +35,11 @@ jobs:
 
           sudo sh -c 'cat > /var/www/rql-test/cgi-bin/slow.py' <<'EOF'
           #!/usr/bin/python3
-          import os
           import time
-          from urllib.parse import parse_qs
-
-          marker = parse_qs(os.environ.get("QUERY_STRING", "")).get("marker", [None])[0]
-          marker_path = "/tmp/rql-slow-" + marker if marker in ("global", "ip") else None
 
           print("Content-Type: text/plain")
           print()
-
-          if marker_path:
-              open(marker_path, "w").close()
-
-          try:
-              time.sleep(3)
-          finally:
-              if marker_path:
-                  try:
-                      os.unlink(marker_path)
-                  except FileNotFoundError:
-                      pass
-
+          time.sleep(3)
           print("OK")
           EOF
           sudo chmod 755 /var/www/rql-test/cgi-bin/slow.py
@@ -196,92 +179,42 @@ jobs:
       - name: Test global active-request limit and HTTP 429
         run: |
           set -e
-          rm -f /tmp/rql-slow-global /tmp/global-*.code
-
-          curl -sS -o /dev/null -w '%{http_code}\n' \
-            -H 'Host: rql-global' \
-            'http://127.0.0.1:8080/cgi-bin/slow.py?marker=global' > /tmp/global-1.code &
-          pid=$!
-
-          for i in $(seq 1 50); do
-            [ -f /tmp/rql-slow-global ] && break
-            sleep 0.1
-          done
-          test -f /tmp/rql-slow-global
-
-          curl -sS -o /dev/null -w '%{http_code}\n' \
-            -H 'Host: rql-global' \
-            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/global-2.code
-
-          wait "$pid"
-
-          curl -sS -o /dev/null -w '%{http_code}\n' \
-            -H 'Host: rql-global' \
-            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/global-3.code
-
-          cat /tmp/global-*.code
-          grep -qx '200' /tmp/global-1.code
-          grep -qx '429' /tmp/global-2.code
-          grep -qx '200' /tmp/global-3.code
+          ab -n 20 -c 5 -H 'Host: rql-global' \
+            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/global-ab.out
+          cat /tmp/global-ab.out
+          grep -q 'Complete requests: *20' /tmp/global-ab.out
+          grep -q 'Non-2xx responses: *19' /tmp/global-ab.out
 
       - name: Test per-IP active-request limit
         run: |
           set -e
-          rm -f /tmp/rql-slow-ip /tmp/ip-*.code
-
-          curl -sS -o /dev/null -w '%{http_code}\n' \
-            -H 'Host: rql-ip' \
-            'http://127.0.0.1:8080/cgi-bin/slow.py?marker=ip' > /tmp/ip-1.code &
-          pid=$!
-
-          for i in $(seq 1 50); do
-            [ -f /tmp/rql-slow-ip ] && break
-            sleep 0.1
-          done
-          test -f /tmp/rql-slow-ip
-
-          curl -sS -o /dev/null -w '%{http_code}\n' \
-            -H 'Host: rql-ip' \
-            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/ip-2.code
-
-          wait "$pid"
-
-          curl -sS -o /dev/null -w '%{http_code}\n' \
-            -H 'Host: rql-ip' \
-            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/ip-3.code
-
-          cat /tmp/ip-*.code
-          grep -qx '200' /tmp/ip-1.code
-          grep -qx '429' /tmp/ip-2.code
-          grep -qx '200' /tmp/ip-3.code
+          ab -n 20 -c 5 -H 'Host: rql-ip' \
+            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/ip-ab.out
+          cat /tmp/ip-ab.out
+          grep -q 'Complete requests: *20' /tmp/ip-ab.out
+          grep -q 'Non-2xx responses: *19' /tmp/ip-ab.out
 
       - name: Test per-VHost limits independently
         run: |
           set -e
-          rm -f /tmp/vhost-*.code
-          curl -sS -o /dev/null -w '%{http_code}\n'             -H 'Host: rql-vhost-a'             http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/vhost-a.code &
-          pid_a=$!
-          curl -sS -o /dev/null -w '%{http_code}\n'             -H 'Host: rql-vhost-b'             http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/vhost-b.code &
-          pid_b=$!
-          wait "$pid_a"
-          wait "$pid_b"
-          cat /tmp/vhost-*.code
-          grep -qx '200' /tmp/vhost-a.code
-          grep -qx '200' /tmp/vhost-b.code
+          ab -n 2 -c 2 -H 'Host: rql-vhost-a' \
+            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/vhost-a.out
+          ab -n 2 -c 2 -H 'Host: rql-vhost-b' \
+            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/vhost-b.out
+          cat /tmp/vhost-a.out /tmp/vhost-b.out
+          grep -q 'Non-2xx responses: *1' /tmp/vhost-a.out
+          grep -q 'Non-2xx responses: *1' /tmp/vhost-b.out
 
       - name: Test per-IP-and-VHost limits independently
         run: |
           set -e
-          rm -f /tmp/ip-vhost-*.code
-          curl -sS -o /dev/null -w '%{http_code}\n'             -H 'Host: rql-ip-vhost-a'             http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/ip-vhost-a.code &
-          pid_a=$!
-          curl -sS -o /dev/null -w '%{http_code}\n'             -H 'Host: rql-ip-vhost-b'             http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/ip-vhost-b.code &
-          pid_b=$!
-          wait "$pid_a"
-          wait "$pid_b"
-          cat /tmp/ip-vhost-*.code
-          grep -qx '200' /tmp/ip-vhost-a.code
-          grep -qx '200' /tmp/ip-vhost-b.code
+          ab -n 2 -c 2 -H 'Host: rql-ip-vhost-a' \
+            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/ip-vhost-a.out
+          ab -n 2 -c 2 -H 'Host: rql-ip-vhost-b' \
+            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/ip-vhost-b.out
+          cat /tmp/ip-vhost-a.out /tmp/ip-vhost-b.out
+          grep -q 'Non-2xx responses: *1' /tmp/ip-vhost-a.out
+          grep -q 'Non-2xx responses: *1' /tmp/ip-vhost-b.out
 
       - name: Test keepalive is not counted as active
         run: |
