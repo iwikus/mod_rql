@@ -4,6 +4,7 @@
 #include "http_request.h"
 #include "http_protocol.h"
 #include "http_log.h"
+#include "apr_file_io.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -17,6 +18,7 @@ typedef struct {
     long max_concurrent_ip;
     long max_concurrent_vhost;
     protect_rate_config rate;
+    const char *protect_log;
 } protect_config;
 
 static void *protect_create_server_config(apr_pool_t *p, server_rec *s)
@@ -31,6 +33,7 @@ static void *protect_create_server_config(apr_pool_t *p, server_rec *s)
     cfg->rate.uri_dynamic_interval = 0;
     cfg->rate.site_count = 0;
     cfg->rate.site_interval = 0;
+    cfg->protect_log = NULL;
     return cfg;
 }
 
@@ -90,6 +93,32 @@ static const char *protect_set_rate(cmd_parms *cmd, void *dummy,
     return NULL;
 }
 
+
+static void protect_log_event(request_rec *r, const char *type,
+                              const char *message)
+{
+    protect_config *cfg;
+    apr_file_t *file;
+    apr_status_t rv;
+
+    cfg = ap_get_module_config(r->server->module_config, &protect_module);
+    if (!cfg->protect_log) {
+        return;
+    }
+
+    rv = apr_file_open(&file, cfg->protect_log,
+                       APR_WRITE | APR_APPEND | APR_CREATE,
+                       APR_OS_DEFAULT, r->pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, r, APLOGNO(10007)
+                      "mod_protect: unable to open ProtectLog");
+        return;
+    }
+
+    apr_file_printf(file, "[%s] %s\\n", type, message);
+    apr_file_close(file);
+}
+
 static int protect_fixups(request_rec *r)
 {
     protect_config *cfg;
@@ -125,6 +154,16 @@ static int protect_fixups(request_rec *r)
                               r->server->server_hostname : "-",
                           counts.ip, counts.vhost);
 
+            {
+                char *message = apr_psprintf(r->pool,
+                    "ip=%s vhost=%s ip=%lu vhost=%lu uri=%s",
+                    r->connection->client_ip,
+                    r->server->server_hostname ?
+                        r->server->server_hostname : "-",
+                    counts.ip, counts.vhost, r->uri ? r->uri : "-");
+                protect_log_event(r, "concurrent", message);
+            }
+
             return HTTP_TOO_MANY_REQUESTS;
         }
     }
@@ -138,6 +177,16 @@ static int protect_fixups(request_rec *r)
                           "ip=%s uri=%s",
                           r->connection->client_ip,
                           r->uri ? r->uri : "-");
+
+            {
+                char *message = apr_psprintf(r->pool,
+                    "ip=%s vhost=%s uri=%s",
+                    r->connection->client_ip,
+                    r->server->server_hostname ?
+                        r->server->server_hostname : "-",
+                    r->uri ? r->uri : "-");
+                protect_log_event(r, "rate", message);
+            }
             return HTTP_TOO_MANY_REQUESTS;
         }
     }
@@ -145,7 +194,20 @@ static int protect_fixups(request_rec *r)
     return DECLINED;
 }
 
+static const char *protect_set_log(cmd_parms *cmd, void *dummy,
+                                    const char *arg)
+{
+    protect_config *cfg = ap_get_module_config(cmd->server->module_config,
+                                               &protect_module);
+    (void)dummy;
+    cfg->protect_log = arg;
+    return NULL;
+}
+
 static const command_rec protect_cmds[] = {
+    AP_INIT_TAKE1("ProtectLog", protect_set_log, NULL,
+                  RSRC_CONF,
+                  "Additional log file for requests rejected by mod_protect"),
     AP_INIT_TAKE1("ProtectMaxConcurrentPerIP", protect_set_limit, NULL,
                   RSRC_CONF,
                   "Maximum concurrent requests per client IP"),
