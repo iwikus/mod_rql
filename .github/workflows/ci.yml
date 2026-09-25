@@ -35,10 +35,28 @@ jobs:
 
           sudo sh -c 'cat > /var/www/rql-test/cgi-bin/slow.py' <<'EOF'
           #!/usr/bin/python3
+          import os
           import time
+          from urllib.parse import parse_qs
+
+          marker = parse_qs(os.environ.get("QUERY_STRING", "")).get("marker", [None])[0]
+          marker_path = "/tmp/rql-slow-" + marker if marker in ("global", "ip") else None
+
           print("Content-Type: text/plain")
           print()
-          time.sleep(3)
+
+          if marker_path:
+              open(marker_path, "w").close()
+
+          try:
+              time.sleep(3)
+          finally:
+              if marker_path:
+                  try:
+                      os.unlink(marker_path)
+                  except FileNotFoundError:
+                      pass
+
           print("OK")
           EOF
           sudo chmod 755 /var/www/rql-test/cgi-bin/slow.py
@@ -178,30 +196,64 @@ jobs:
       - name: Test global active-request limit and HTTP 429
         run: |
           set -e
-          rm -f /tmp/global-*.code
-          for i in 1 2 3 4 5; do
-            curl -sS -o /dev/null -w '%{http_code}\n' \
-              -H 'Host: rql-global' \
-              http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/global-$i.code &
+          rm -f /tmp/rql-slow-global /tmp/global-*.code
+
+          curl -sS -o /dev/null -w '%{http_code}\n' \
+            -H 'Host: rql-global' \
+            'http://127.0.0.1:8080/cgi-bin/slow.py?marker=global' > /tmp/global-1.code &
+          pid=$!
+
+          for i in $(seq 1 50); do
+            [ -f /tmp/rql-slow-global ] && break
+            sleep 0.1
           done
-          wait
+          test -f /tmp/rql-slow-global
+
+          curl -sS -o /dev/null -w '%{http_code}\n' \
+            -H 'Host: rql-global' \
+            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/global-2.code
+
+          wait "$pid"
+
+          curl -sS -o /dev/null -w '%{http_code}\n' \
+            -H 'Host: rql-global' \
+            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/global-3.code
+
           cat /tmp/global-*.code
-          cat /tmp/global-*.code | grep -qx '200'
-          cat /tmp/global-*.code | grep -qx '429'
+          grep -qx '200' /tmp/global-1.code
+          grep -qx '429' /tmp/global-2.code
+          grep -qx '200' /tmp/global-3.code
 
       - name: Test per-IP active-request limit
         run: |
           set -e
-          rm -f /tmp/ip-*.code
-          for i in 1 2 3 4 5; do
-            curl -sS -o /dev/null -w '%{http_code}\n' \
-              -H 'Host: rql-ip' \
-              http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/ip-$i.code &
+          rm -f /tmp/rql-slow-ip /tmp/ip-*.code
+
+          curl -sS -o /dev/null -w '%{http_code}\n' \
+            -H 'Host: rql-ip' \
+            'http://127.0.0.1:8080/cgi-bin/slow.py?marker=ip' > /tmp/ip-1.code &
+          pid=$!
+
+          for i in $(seq 1 50); do
+            [ -f /tmp/rql-slow-ip ] && break
+            sleep 0.1
           done
-          wait
+          test -f /tmp/rql-slow-ip
+
+          curl -sS -o /dev/null -w '%{http_code}\n' \
+            -H 'Host: rql-ip' \
+            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/ip-2.code
+
+          wait "$pid"
+
+          curl -sS -o /dev/null -w '%{http_code}\n' \
+            -H 'Host: rql-ip' \
+            http://127.0.0.1:8080/cgi-bin/slow.py > /tmp/ip-3.code
+
           cat /tmp/ip-*.code
-          cat /tmp/ip-*.code | grep -qx '200'
-          cat /tmp/ip-*.code | grep -qx '429'
+          grep -qx '200' /tmp/ip-1.code
+          grep -qx '429' /tmp/ip-2.code
+          grep -qx '200' /tmp/ip-3.code
 
       - name: Test per-VHost limits independently
         run: |
