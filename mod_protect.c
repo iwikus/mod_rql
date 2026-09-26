@@ -37,6 +37,22 @@ static void *protect_create_server_config(apr_pool_t *p, server_rec *s)
     return cfg;
 }
 
+static void *protect_merge_server_config(apr_pool_t *p, void *basev, void *overv)
+{
+    protect_config *base = (protect_config *)basev;
+    protect_config *over = (protect_config *)overv;
+    protect_config *cfg = apr_pcalloc(p, sizeof(*cfg));
+
+    cfg->max_concurrent_ip = over->max_concurrent_ip;
+    cfg->max_concurrent_vhost = over->max_concurrent_vhost;
+    cfg->rate = over->rate;
+
+    cfg->protect_log = over->protect_log ?
+        over->protect_log : base->protect_log;
+
+    return cfg;
+}
+
 static const char *protect_set_limit(cmd_parms *cmd, void *dummy,
                                      const char *arg)
 {
@@ -93,7 +109,6 @@ static const char *protect_set_rate(cmd_parms *cmd, void *dummy,
     return NULL;
 }
 
-
 static void protect_log_event(request_rec *r, const char *type,
                               const char *message)
 {
@@ -115,7 +130,7 @@ static void protect_log_event(request_rec *r, const char *type,
         return;
     }
 
-    apr_file_printf(file, "[%s] %s\\n", type, message);
+    apr_file_printf(file, "[%s] %s\n", type, message);
     apr_file_close(file);
 }
 
@@ -195,7 +210,7 @@ static int protect_fixups(request_rec *r)
 }
 
 static const char *protect_set_log(cmd_parms *cmd, void *dummy,
-                                    const char *arg)
+                                   const char *arg)
 {
     protect_config *cfg = ap_get_module_config(cmd->server->module_config,
                                                &protect_module);
@@ -247,7 +262,7 @@ module AP_MODULE_DECLARE_DATA protect_module = {
     NULL,
     NULL,
     protect_create_server_config,
-    NULL,
+    protect_merge_server_config,
     protect_cmds,
     protect_register_hooks
 };
