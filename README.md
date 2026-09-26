@@ -143,19 +143,19 @@ The Apache scoreboard is created and maintained by Apache.
 LoadModule status_module modules/mod_status.so
 LoadModule protect_module modules/mod_protect.so
 
-ProtectMaxConcurrentPerIP 20
-ProtectMaxConcurrentPerVHost 80
+LogLevel protect:debug
 
-ProtectURICount 20
-ProtectURIInterval 1
+ProtectURICount 500
+ProtectURIInterval 10
 
-ProtectURIDynamicCount 10
-ProtectURIDynamicInterval 1
+ProtectURIDynamicCount 20
+ProtectURIDynamicInterval 5
 
 ProtectSiteCount 500
-ProtectSiteInterval 5
+ProtectSiteInterval 1
 
-ProtectLog /var/log/apache2/protect.log
+ProtectMaxConcurrentPerIP 10
+ProtectMaxConcurrentPerVHost 20
 ```
 
 ## Build
