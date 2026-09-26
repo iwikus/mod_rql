@@ -307,9 +307,36 @@ static const command_rec protect_cmds[] = {
     { NULL }
 };
 
+static int protect_post_config(apr_pool_t *pconf, apr_pool_t *plog,
+                               apr_pool_t *ptemp, server_rec *s)
+{
+    server_rec *srv;
+
+    (void)pconf;
+    (void)plog;
+    (void)ptemp;
+
+    for (srv = s; srv; srv = srv->next) {
+        protect_config *cfg =
+            ap_get_module_config(srv->module_config, &protect_module);
+
+        if (cfg->max_concurrent_ip || cfg->max_concurrent_vhost) {
+            if (!ap_extended_status) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, srv, APLOGNO(10008)
+                             "mod_protect: ExtendedStatus is disabled; "
+                             "concurrent request limits may not work");
+            }
+            break;
+        }
+    }
+
+    return OK;
+}
+
 static void protect_register_hooks(apr_pool_t *p)
 {
     ap_hook_post_config(protect_rate_post_config, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_post_config(protect_post_config, NULL, NULL, APR_HOOK_LAST);
     ap_hook_fixups(protect_fixups, NULL, NULL, APR_HOOK_LAST);
     (void)p;
 }
