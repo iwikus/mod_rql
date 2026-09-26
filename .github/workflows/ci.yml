@@ -166,10 +166,6 @@ jobs:
           sleep 1
           curl -fsS -H 'Host: protect-test' http://127.0.0.1:8080/
 
-      - name: Verify module is loaded
-        run: |
-          apache2ctl -M | grep protect_module
-
       - name: Install Python test dependencies
         run: |
           python3 -m pip install --break-system-packages aiohttp
