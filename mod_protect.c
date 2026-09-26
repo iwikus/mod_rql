@@ -126,7 +126,7 @@ static int protect_fixups(request_rec *r)
     int rv;
     int rate_limited = 0;
 
-    if (!r->connection || !r->connection->client_ip ||
+    if (!r->connection || !r->useragent_ip ||
         !ap_is_initial_req(r)) {
         return DECLINED;
     }
@@ -149,7 +149,7 @@ static int protect_fixups(request_rec *r)
             ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(10002)
                           "mod_protect: concurrent request limit exceeded: "
                           "ip=%s vhost=%s ip=%lu vhost=%lu",
-                          r->connection->client_ip,
+                          r->useragent_ip,
                           r->server->server_hostname ?
                               r->server->server_hostname : "-",
                           counts.ip, counts.vhost);
@@ -157,7 +157,7 @@ static int protect_fixups(request_rec *r)
             {
                 char *message = apr_psprintf(r->pool,
                     "ip=%s vhost=%s ip=%lu vhost=%lu uri=%s",
-                    r->connection->client_ip,
+                    r->useragent_ip,
                     r->server->server_hostname ?
                         r->server->server_hostname : "-",
                     counts.ip, counts.vhost, r->uri ? r->uri : "-");
@@ -175,13 +175,13 @@ static int protect_fixups(request_rec *r)
             ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(10006)
                           "mod_protect: request rate limit exceeded: "
                           "ip=%s uri=%s",
-                          r->connection->client_ip,
+                          r->useragent_ip,
                           r->uri ? r->uri : "-");
 
             {
                 char *message = apr_psprintf(r->pool,
                     "ip=%s vhost=%s uri=%s",
-                    r->connection->client_ip,
+                    r->useragent_ip,
                     r->server->server_hostname ?
                         r->server->server_hostname : "-",
                     r->uri ? r->uri : "-");
