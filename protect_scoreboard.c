@@ -47,9 +47,9 @@ int protect_scoreboard_count(request_rec *r, protect_scoreboard_counts *counts)
 
             ++counts->global;
 
-            if (r->connection && r->connection->client_ip &&
+            if (r->connection && r->useragent_ip &&
                 ws.client64[0] &&
-                strcmp(r->connection->client_ip, ws.client64) == 0) {
+                strcmp(r->useragent_ip, ws.client64) == 0) {
                 ++counts->ip;
             }
 
