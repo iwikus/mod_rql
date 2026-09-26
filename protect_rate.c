@@ -123,18 +123,23 @@ static const char *protect_rate_key_site(request_rec *r, apr_pool_t *p)
 }
 
 int protect_rate_check(request_rec *r, const protect_rate_config *cfg,
-                       int *limited)
+                       int *limited, const char **reason,
+                       unsigned long *count, long *limit)
 {
     const char *key;
     apr_status_t rv;
 
-    if (!r || !cfg || !limited || !protect_rate_data ||
+    if (!r || !cfg || !limited || !reason || !count || !limit ||
+        !protect_rate_data ||
         !protect_rate_mutex || !r->connection ||
         !r->useragent_ip || !ap_is_initial_req(r)) {
         return DECLINED;
     }
 
     *limited = 0;
+    *reason = NULL;
+    *count = 0;
+    *limit = 0;
 
     if (!cfg->uri_count && !cfg->uri_dynamic_count && !cfg->site_count) {
         return DECLINED;
@@ -154,6 +159,9 @@ int protect_rate_check(request_rec *r, const protect_rate_config *cfg,
                              (apr_uint32_t)cfg->site_count,
                              apr_time_from_sec(cfg->site_interval))) {
             *limited = 1;
+            *reason = "site";
+            *count = cfg->site_count + 1;
+            *limit = cfg->site_count;
         }
     }
 
@@ -164,6 +172,9 @@ int protect_rate_check(request_rec *r, const protect_rate_config *cfg,
                              (apr_uint32_t)cfg->uri_count,
                              apr_time_from_sec(cfg->uri_interval))) {
             *limited = 1;
+            *reason = "uri";
+            *count = cfg->uri_count + 1;
+            *limit = cfg->uri_count;
         }
     }
 
@@ -176,6 +187,9 @@ int protect_rate_check(request_rec *r, const protect_rate_config *cfg,
                              (apr_uint32_t)cfg->uri_dynamic_count,
                              apr_time_from_sec(cfg->uri_dynamic_interval))) {
             *limited = 1;
+            *reason = "dynamic";
+            *count = cfg->uri_dynamic_count + 1;
+            *limit = cfg->uri_dynamic_count;
         }
     }
 
