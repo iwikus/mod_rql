@@ -88,18 +88,6 @@ ProtectSiteInterval seconds
 
 Sets the fixed time window used by ProtectSiteCount.
 
-### ProtectLog
-
-```apache
-ProtectLog path
-```
-
-Enables an additional log containing requests rejected by mod_protect.
-
-The Apache process must have permission to create and write the file.
-
-The normal Apache error log is not replaced.
-
 ## Request handling
 
 When a configured limit is exceeded, mod_protect rejects the request with HTTP status 429 Too Many Requests.
