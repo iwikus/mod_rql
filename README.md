@@ -5,7 +5,7 @@ Apache HTTP Server module for limiting concurrent requests and request rates by 
 ## Requirements
 
 - Apache HTTP Server 2.4
-- Apache scoreboard for concurrent request limits
+- Apache scoreboard with `ExtendedStatus On` for concurrent request limits
 - APR shared memory and process-shared mutex support for rate limits
 
 ## Loading
@@ -152,6 +152,8 @@ The Apache scoreboard is created and maintained by Apache.
 ```apache
 LoadModule status_module modules/mod_status.so
 LoadModule protect_module modules/mod_protect.so
+
+ExtendedStatus On
 
 LogLevel protect:debug
 
