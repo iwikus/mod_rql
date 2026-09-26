@@ -241,13 +241,9 @@ static const command_rec protect_cmds[] = {
     { NULL }
 };
 
-static int protect_open_logs(apr_pool_t *pconf, apr_pool_t *plog,
-                              apr_pool_t *ptemp, server_rec *s)
+static void protect_child_init(apr_pool_t *p, server_rec *s)
 {
     server_rec *srv;
-
-    (void)plog;
-    (void)ptemp;
 
     for (srv = s; srv; srv = srv->next) {
         protect_config *cfg;
@@ -260,20 +256,18 @@ static int protect_open_logs(apr_pool_t *pconf, apr_pool_t *plog,
 
         rv = apr_file_open(&cfg->protect_log_file, cfg->protect_log,
                            APR_WRITE | APR_APPEND | APR_CREATE,
-                           APR_OS_DEFAULT, pconf);
+                           APR_OS_DEFAULT, p);
         if (rv != APR_SUCCESS) {
             ap_log_error(APLOG_MARK, APLOG_WARNING, rv, srv, APLOGNO(10007)
                          "mod_protect: unable to open ProtectLog");
             cfg->protect_log_file = NULL;
         }
     }
-
-    return OK;
 }
 
 static void protect_register_hooks(apr_pool_t *p)
 {
-    ap_hook_open_logs(protect_open_logs, NULL, NULL, APR_HOOK_MIDDLE);
+    ap_hook_child_init(protect_child_init, NULL, NULL, APR_HOOK_MIDDLE);
     ap_hook_post_config(protect_rate_post_config, NULL, NULL, APR_HOOK_MIDDLE);
     ap_hook_fixups(protect_fixups, NULL, NULL, APR_HOOK_LAST);
     (void)p;
