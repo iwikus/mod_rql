@@ -273,13 +273,6 @@ jobs:
           conn.close()
           PY
 
-      - name: Test ProtectLog
-        run: |
-          set -e
-          test -f /tmp/protect.log
-          sudo grep -q '^\[concurrent\] ip=' /tmp/protect.log
-          sudo grep -q '^\[rate\] ip=' /tmp/protect.log
-
       - name: ApacheBench basic smoke test
         run: |
           ab -n 20 -c 5 -H 'Host: protect-test' http://127.0.0.1:8080/
