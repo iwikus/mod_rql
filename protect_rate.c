@@ -51,7 +51,9 @@ static int protect_rate_dynamic(request_rec *r)
 
     if (!strcmp(r->handler, "cgi-script") ||
         !strcmp(r->handler, "fcgid-script") ||
-        !strcmp(r->handler, "proxy-server")) {
+        !strcmp(r->handler, "proxy-server") ||
+        !strcmp(r->handler, "application/x-httpd-php") ||
+        !strcmp(r->handler, "application/x-httpd-php-source")) {
         return 1;
     }
 
