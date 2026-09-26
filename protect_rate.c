@@ -103,7 +103,7 @@ static int protect_rate_hit(protect_rate_entry *table,
 
 static const char *protect_rate_key_uri(request_rec *r, apr_pool_t *p)
 {
-    const char *ip = r->connection->client_ip ? r->connection->client_ip : "";
+    const char *ip = r->useragent_ip ? r->useragent_ip : "";
     const char *host = r->server->server_hostname ?
                        r->server->server_hostname : "";
     const char *uri = r->uri ? r->uri : "";
@@ -113,7 +113,7 @@ static const char *protect_rate_key_uri(request_rec *r, apr_pool_t *p)
 
 static const char *protect_rate_key_site(request_rec *r, apr_pool_t *p)
 {
-    const char *ip = r->connection->client_ip ? r->connection->client_ip : "";
+    const char *ip = r->useragent_ip ? r->useragent_ip : "";
     const char *host = r->server->server_hostname ?
                        r->server->server_hostname : "";
 
@@ -128,7 +128,7 @@ int protect_rate_check(request_rec *r, const protect_rate_config *cfg,
 
     if (!r || !cfg || !limited || !protect_rate_data ||
         !protect_rate_mutex || !r->connection ||
-        !r->connection->client_ip || !ap_is_initial_req(r)) {
+        !r->useragent_ip || !ap_is_initial_req(r)) {
         return DECLINED;
     }
 
