@@ -145,13 +145,13 @@ LoadModule protect_module modules/mod_protect.so
 
 LogLevel protect:debug
 
-ProtectURICount 500
+ProtectURICount 100
 ProtectURIInterval 10
 
 ProtectURIDynamicCount 20
 ProtectURIDynamicInterval 5
 
-ProtectSiteCount 500
+ProtectSiteCount 300
 ProtectSiteInterval 1
 
 ProtectMaxConcurrentPerIP 10
