@@ -14,7 +14,8 @@ typedef struct {
 } protect_rate_config;
 
 int protect_rate_check(request_rec *r, const protect_rate_config *cfg,
-                       int *limited);
+                       int *limited, const char **reason,
+                       unsigned long *count, long *limit);
 
 int protect_rate_post_config(apr_pool_t *pconf, apr_pool_t *plog,
                              apr_pool_t *ptemp, server_rec *s);
