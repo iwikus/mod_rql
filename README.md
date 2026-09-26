@@ -102,19 +102,19 @@ Concurrent and rate limits are independent and can be used together.
 
 ## Error log
 
-When a concurrent request limit is exceeded, mod_protect writes a notice to the Apache error log:
+When a concurrent request limit is exceeded, mod_protect writes a notice to the Apache error log. The message identifies the directive that caused the rejection and reports the current count and limit:
 
 ```text
-mod_protect: concurrent request limit exceeded: ip=192.0.2.10 vhost=www.example.com ip=21 vhost=5
+mod_protect: ProtectMaxConcurrentPerIP exceeded: ip=192.0.2.10 vhost=www.example.com count_ip=21/10 count_vhost=5/20
 ```
 
-When a request-rate limit is exceeded, mod_protect writes:
+When a request-rate limit is exceeded, the message identifies the directive and reports the current count and limit:
 
 ```text
-mod_protect: request rate limit exceeded: ip=192.0.2.10 uri=/api/test
+mod_protect: ProtectURICount exceeded: ip=192.0.2.10 uri=/api/test count=101/100
 ```
 
-These messages are logged at notice level.
+For concurrent limits, `count_ip` and `count_vhost` show the current count and configured limit. For rate limits, `count` shows the current count and configured limit. If both concurrent limits are exceeded, both directive names are reported. These messages are logged at notice level.
 
 The log level can be changed using Apache's LogLevel directive, for example:
 
