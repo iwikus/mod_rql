@@ -5,10 +5,12 @@
 #include "http_protocol.h"
 #include "http_log.h"
 #include "apr_file_io.h"
+#include "apr_strings.h"
 
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
 
 #include "protect_scoreboard.h"
 #include "protect_rate.h"
@@ -118,15 +120,31 @@ static void protect_log_event(request_rec *r, const char *type,
                               const char *message)
 {
     protect_config *cfg;
+    char *line;
+    const char *p;
+    size_t len;
 
     cfg = ap_get_module_config(r->server->module_config, &protect_module);
     if (cfg->protect_log_fd == (apr_os_file_t)-1) {
         return;
     }
 
-    {
-        char *line = apr_psprintf(r->pool, "[%s] %s\n", type, message);
-        (void)write(cfg->protect_log_fd, line, strlen(line));
+    line = apr_psprintf(r->pool, "[%s] %s\n", type, message);
+    p = line;
+    len = strlen(line);
+
+    while (len > 0) {
+        ssize_t n = write(cfg->protect_log_fd, p, len);
+        if (n > 0) {
+            p += n;
+            len -= (size_t)n;
+        }
+        else if (n < 0 && errno == EINTR) {
+            continue;
+        }
+        else {
+            break;
+        }
     }
 }
 
@@ -234,7 +252,21 @@ static const char *protect_set_log(cmd_parms *cmd, void *dummy,
                             arg);
     }
 
-    cfg->protect_log_fd = fd;
+    /*
+     * The APR file is owned by cmd->pool and will be closed when that
+     * pool is destroyed. Keep an independent descriptor for use after
+     * configuration parsing and by forked Apache children.
+     */
+    {
+        int dupfd = dup(fd);
+        if (dupfd == -1) {
+            return apr_psprintf(cmd->pool,
+                                "mod_protect: unable to duplicate ProtectLog fd: %s",
+                                arg);
+        }
+        cfg->protect_log_fd = (apr_os_file_t)dupfd;
+    }
+
     return NULL;
 }
 
@@ -268,30 +300,6 @@ static const command_rec protect_cmds[] = {
                   "Site request-rate interval in seconds"),
     { NULL }
 };
-
-static void protect_child_init(apr_pool_t *p, server_rec *s)
-{
-    server_rec *srv;
-
-    for (srv = s; srv; srv = srv->next) {
-        protect_config *cfg;
-        apr_status_t rv;
-
-        cfg = ap_get_module_config(srv->module_config, &protect_module);
-        if (!cfg->protect_log) {
-            continue;
-        }
-
-        rv = apr_file_open(&cfg->protect_log_file, cfg->protect_log,
-                           APR_WRITE | APR_APPEND | APR_CREATE,
-                           APR_OS_DEFAULT, p);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, rv, srv, APLOGNO(10007)
-                         "mod_protect: unable to open ProtectLog");
-            cfg->protect_log_file = NULL;
-        }
-    }
-}
 
 static void protect_register_hooks(apr_pool_t *p)
 {
