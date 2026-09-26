@@ -123,13 +123,16 @@ static void protect_log_event(request_rec *r, const char *type,
     char *line;
     const char *p;
     size_t len;
+    char timestamp[APR_CTIME_LEN];
 
     cfg = ap_get_module_config(r->server->module_config, &protect_module);
     if (cfg->protect_log_fd == (apr_os_file_t)-1) {
         return;
     }
 
-    line = apr_psprintf(r->pool, "[%s] [%s] %s\n", type, ap_get_server_version(), message);
+    apr_ctime(timestamp, r->request_time);
+    timestamp[strlen(timestamp) - 1] = '\0';
+    line = apr_psprintf(r->pool, "[%s] [%s] %s\n", timestamp, type, message);
     p = line;
     len = strlen(line);
 
