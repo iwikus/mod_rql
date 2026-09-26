@@ -40,7 +40,7 @@ Limits the number of concurrently active HTTP requests to the current virtual ho
 ProtectURICount number
 ```
 
-Limits the number of requests from one client IP to one URI within the configured `ProtectURIInterval`.
+Limits the number of requests from one client IP to one URI within the configured ProtectURIInterval.
 
 The URI is Apache's normalized request URI. The query string is not included.
 
@@ -50,7 +50,7 @@ The URI is Apache's normalized request URI. The query string is not included.
 ProtectURIInterval seconds
 ```
 
-Sets the fixed time window used by `ProtectURICount`.
+Sets the fixed time window used by ProtectURICount.
 
 ### ProtectURIDynamicCount
 
@@ -60,7 +60,7 @@ ProtectURIDynamicCount number
 
 Sets an additional request limit for dynamic requests to one URI.
 
-The limit is independent of `ProtectURICount`.
+The limit is independent of ProtectURICount.
 
 Dynamic requests are identified by the Apache request handler rather than by the URI or file name.
 
@@ -70,7 +70,7 @@ Dynamic requests are identified by the Apache request handler rather than by the
 ProtectURIDynamicInterval seconds
 ```
 
-Sets the fixed time window used by `ProtectURIDynamicCount`.
+Sets the fixed time window used by ProtectURIDynamicCount.
 
 ### ProtectSiteCount
 
@@ -78,7 +78,7 @@ Sets the fixed time window used by `ProtectURIDynamicCount`.
 ProtectSiteCount number
 ```
 
-Limits the number of requests from one client IP to one virtual host within the configured `ProtectSiteInterval`.
+Limits the number of requests from one client IP to one virtual host within the configured ProtectSiteInterval.
 
 ### ProtectSiteInterval
 
@@ -86,7 +86,7 @@ Limits the number of requests from one client IP to one virtual host within the 
 ProtectSiteInterval seconds
 ```
 
-Sets the fixed time window used by `ProtectSiteCount`.
+Sets the fixed time window used by ProtectSiteCount.
 
 ### ProtectLog
 
@@ -94,7 +94,7 @@ Sets the fixed time window used by `ProtectSiteCount`.
 ProtectLog path
 ```
 
-Enables an additional log containing requests rejected by `mod_protect`.
+Enables an additional log containing requests rejected by mod_protect.
 
 The Apache process must have permission to create and write the file.
 
@@ -102,7 +102,7 @@ The normal Apache error log is not replaced.
 
 ## Request handling
 
-When a configured limit is exceeded, `mod_protect` rejects the request with HTTP status `429 Too Many Requests`.
+When a configured limit is exceeded, mod_protect rejects the request with HTTP status 429 Too Many Requests.
 
 Concurrent limits apply to active HTTP requests. They are not TCP connection limits and are not rate limits.
 
@@ -111,6 +111,28 @@ Concurrent limits are evaluated using the Apache scoreboard.
 Rate limits use fixed time windows. The configured number of requests is allowed during the window; the next request is rejected.
 
 Concurrent and rate limits are independent and can be used together.
+
+## Error log
+
+When a concurrent request limit is exceeded, mod_protect writes a notice to the Apache error log:
+
+```text
+mod_protect: concurrent request limit exceeded: ip=192.0.2.10 vhost=www.example.com ip=21 vhost=5
+```
+
+When a request-rate limit is exceeded, mod_protect writes:
+
+```text
+mod_protect: request rate limit exceeded: ip=192.0.2.10 uri=/api/test
+```
+
+These messages are logged at notice level.
+
+The log level can be changed using Apache's LogLevel directive, for example:
+
+```apache
+LogLevel protect:debug
+```
 
 ## Rate limiting
 
@@ -133,7 +155,7 @@ If the rate-limit table is full, the module fails open.
 
 Concurrent request limits use the Apache scoreboard as the source of truth.
 
-The module uses Apache's public scoreboard API. It does not maintain a separate concurrent-request counter and does not poll `/server-status`.
+The module uses Apache's public scoreboard API. It does not maintain a separate concurrent-request counter and does not poll /server-status.
 
 The Apache scoreboard is created and maintained by Apache.
 
@@ -160,7 +182,7 @@ ProtectMaxConcurrentPerVHost 20
 
 ## Build
 
-Build using `apxs`:
+Build using apxs:
 
 ```sh
 apxs -c -I. mod_protect.c protect_scoreboard.c protect_rate.c
@@ -172,7 +194,7 @@ Install:
 apxs -i -a mod_protect.la
 ```
 
-Or use the included `Makefile`:
+Or use the included Makefile:
 
 ```sh
 make
@@ -192,6 +214,6 @@ Makefile
 
 ## Response
 
-Requests rejected by `mod_protect` receive HTTP status `429 Too Many Requests`.
+Requests rejected by mod_protect receive HTTP status 429 Too Many Requests.
 
 The module does not generate a response body.
