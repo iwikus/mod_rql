@@ -182,20 +182,42 @@ static int protect_fixups(request_rec *r)
              counts.vhost > (unsigned long)cfg->max_concurrent_vhost)) {
 
             ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(10002)
-                          "mod_protect: concurrent request limit exceeded: "
-                          "ip=%s vhost=%s ip=%lu vhost=%lu",
+                          "mod_protect: %s exceeded: "
+                          "ip=%s vhost=%s count_ip=%lu/%ld count_vhost=%lu/%ld",
+                          (cfg->max_concurrent_ip &&
+                           counts.ip > (unsigned long)cfg->max_concurrent_ip) &&
+                          (cfg->max_concurrent_vhost &&
+                           counts.vhost > (unsigned long)cfg->max_concurrent_vhost)
+                              ? "ProtectMaxConcurrentPerIP,ProtectMaxConcurrentPerVHost"
+                              : (cfg->max_concurrent_ip &&
+                                 counts.ip > (unsigned long)cfg->max_concurrent_ip)
+                                  ? "ProtectMaxConcurrentPerIP"
+                                  : "ProtectMaxConcurrentPerVHost",
                           r->useragent_ip,
                           r->server->server_hostname ?
                               r->server->server_hostname : "-",
-                          counts.ip, counts.vhost);
+                          counts.ip, cfg->max_concurrent_ip,
+                          counts.vhost, cfg->max_concurrent_vhost);
 
             {
                 char *message = apr_psprintf(r->pool,
-                    "ip=%s vhost=%s ip=%lu/%ld vhost=%lu/%ld reason=%s uri=%s",
+                    "ip=%s vhost=%s count_ip=%lu/%ld count_vhost=%lu/%ld "
+                    "directive=%s uri=%s",
                     r->useragent_ip,
                     r->server->server_hostname ?
                         r->server->server_hostname : "-",
-                    counts.ip, cfg->max_concurrent_ip, counts.vhost, cfg->max_concurrent_vhost, ((cfg->max_concurrent_ip && counts.ip > (unsigned long)cfg->max_concurrent_ip) && (cfg->max_concurrent_vhost && counts.vhost > (unsigned long)cfg->max_concurrent_vhost)) ? "ip,vhost" : (cfg->max_concurrent_ip && counts.ip > (unsigned long)cfg->max_concurrent_ip) ? "ip" : "vhost", r->uri ? r->uri : "-");
+                    counts.ip, cfg->max_concurrent_ip,
+                    counts.vhost, cfg->max_concurrent_vhost,
+                    (cfg->max_concurrent_ip &&
+                     counts.ip > (unsigned long)cfg->max_concurrent_ip) &&
+                    (cfg->max_concurrent_vhost &&
+                     counts.vhost > (unsigned long)cfg->max_concurrent_vhost)
+                        ? "ProtectMaxConcurrentPerIP,ProtectMaxConcurrentPerVHost"
+                        : (cfg->max_concurrent_ip &&
+                           counts.ip > (unsigned long)cfg->max_concurrent_ip)
+                            ? "ProtectMaxConcurrentPerIP"
+                            : "ProtectMaxConcurrentPerVHost",
+                    r->uri ? r->uri : "-");
                 protect_log_event(r, "concurrent", message);
             }
 
@@ -208,18 +230,22 @@ static int protect_fixups(request_rec *r)
         rv = protect_rate_check(r, &cfg->rate, &rate_limited, &rate_reason, &rate_count, &rate_limit);
         if (rv == OK && rate_limited) {
             ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(10006)
-                          "mod_protect: request rate limit exceeded: "
-                          "ip=%s uri=%s",
+                          "mod_protect: %s exceeded: "
+                          "ip=%s uri=%s count=%lu/%ld",
+
+                          rate_reason ? rate_reason : "rate limit",
                           r->useragent_ip,
-                          r->uri ? r->uri : "-");
+                          r->uri ? r->uri : "-",
+                          rate_count, rate_limit);
 
             {
                 char *message = apr_psprintf(r->pool,
-                    "ip=%s vhost=%s uri=%s count=%lu/%ld reason=%s",
+                    "ip=%s vhost=%s uri=%s count=%lu/%ld directive=%s",
                     r->useragent_ip,
                     r->server->server_hostname ?
                         r->server->server_hostname : "-",
-                    r->uri ? r->uri : "-", rate_count, rate_limit, rate_reason ? rate_reason : "-");
+                    r->uri ? r->uri : "-", rate_count, rate_limit,
+                    rate_reason ? rate_reason : "-");
                 protect_log_event(r, "rate", message);
             }
             return HTTP_TOO_MANY_REQUESTS;
