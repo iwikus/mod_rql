@@ -51,7 +51,8 @@ static void *protect_merge_server_config(apr_pool_t *p, void *basev, void *overv
 
     cfg->protect_log = over->protect_log ?
         over->protect_log : base->protect_log;
-    cfg->protect_log_file = NULL;
+    cfg->protect_log_file = over->protect_log_file ?
+        over->protect_log_file : base->protect_log_file;
 
     return cfg;
 }
@@ -205,8 +206,20 @@ static const char *protect_set_log(cmd_parms *cmd, void *dummy,
 {
     protect_config *cfg = ap_get_module_config(cmd->server->module_config,
                                                &protect_module);
+    apr_status_t rv;
+
     (void)dummy;
+
     cfg->protect_log = arg;
+    rv = apr_file_open(&cfg->protect_log_file, arg,
+                       APR_WRITE | APR_APPEND | APR_CREATE | APR_BINARY,
+                       APR_OS_DEFAULT, cmd->pool);
+    if (rv != APR_SUCCESS) {
+        return apr_psprintf(cmd->pool,
+                            "mod_protect: unable to open ProtectLog: %s",
+                            arg);
+    }
+
     return NULL;
 }
 
@@ -267,7 +280,6 @@ static void protect_child_init(apr_pool_t *p, server_rec *s)
 
 static void protect_register_hooks(apr_pool_t *p)
 {
-    ap_hook_child_init(protect_child_init, NULL, NULL, APR_HOOK_MIDDLE);
     ap_hook_post_config(protect_rate_post_config, NULL, NULL, APR_HOOK_MIDDLE);
     ap_hook_fixups(protect_fixups, NULL, NULL, APR_HOOK_LAST);
     (void)p;
