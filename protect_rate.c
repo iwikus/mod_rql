@@ -159,7 +159,7 @@ int protect_rate_check(request_rec *r, const protect_rate_config *cfg,
                              (apr_uint32_t)cfg->site_count,
                              apr_time_from_sec(cfg->site_interval))) {
             *limited = 1;
-            *reason = "site";
+            *reason = "ProtectSiteCount";
             *count = cfg->site_count + 1;
             *limit = cfg->site_count;
         }
@@ -172,7 +172,7 @@ int protect_rate_check(request_rec *r, const protect_rate_config *cfg,
                              (apr_uint32_t)cfg->uri_count,
                              apr_time_from_sec(cfg->uri_interval))) {
             *limited = 1;
-            *reason = "uri";
+            *reason = "ProtectURICount";
             *count = cfg->uri_count + 1;
             *limit = cfg->uri_count;
         }
@@ -187,7 +187,7 @@ int protect_rate_check(request_rec *r, const protect_rate_config *cfg,
                              (apr_uint32_t)cfg->uri_dynamic_count,
                              apr_time_from_sec(cfg->uri_dynamic_interval))) {
             *limited = 1;
-            *reason = "dynamic";
+            *reason = "ProtectURIDynamicCount";
             *count = cfg->uri_dynamic_count + 1;
             *limit = cfg->uri_dynamic_count;
         }
