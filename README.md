@@ -1,45 +1,197 @@
 # mod_protect
 
-Apache HTTP Server request limiter.
+Apache HTTP Server module for limiting concurrent requests and request rates by client IP, URI and virtual host.
 
-The module limits concurrent HTTP requests using the Apache scoreboard as the source of truth.
+## Requirements
 
-## Configuration
+- Apache HTTP Server 2.4
+- Apache scoreboard for concurrent request limits
+- APR shared memory and process-shared mutex support for rate limits
+
+## Loading
 
 ```apache
+LoadModule protect_module modules/mod_protect.so
+```
+
+## Directives
+
+### ProtectMaxConcurrentPerIP
+
+```apache
+ProtectMaxConcurrentPerIP number
+```
+
+Limits the number of concurrently active HTTP requests from one client IP address.
+
+The limit applies across all virtual hosts.
+
+### ProtectMaxConcurrentPerVHost
+
+```apache
+ProtectMaxConcurrentPerVHost number
+```
+
+Limits the number of concurrently active HTTP requests to the current virtual host.
+
+### ProtectURICount
+
+```apache
+ProtectURICount number
+```
+
+Limits the number of requests from one client IP to one URI within the configured `ProtectURIInterval`.
+
+The URI is Apache's normalized request URI. The query string is not included.
+
+### ProtectURIInterval
+
+```apache
+ProtectURIInterval seconds
+```
+
+Sets the fixed time window used by `ProtectURICount`.
+
+### ProtectURIDynamicCount
+
+```apache
+ProtectURIDynamicCount number
+```
+
+Sets an additional request limit for dynamic requests to one URI.
+
+The limit is independent of `ProtectURICount`.
+
+Dynamic requests are identified by the Apache request handler rather than by the URI or file name.
+
+### ProtectURIDynamicInterval
+
+```apache
+ProtectURIDynamicInterval seconds
+```
+
+Sets the fixed time window used by `ProtectURIDynamicCount`.
+
+### ProtectSiteCount
+
+```apache
+ProtectSiteCount number
+```
+
+Limits the number of requests from one client IP to one virtual host within the configured `ProtectSiteInterval`.
+
+### ProtectSiteInterval
+
+```apache
+ProtectSiteInterval seconds
+```
+
+Sets the fixed time window used by `ProtectSiteCount`.
+
+### ProtectLog
+
+```apache
+ProtectLog path
+```
+
+Enables an additional log containing requests rejected by `mod_protect`.
+
+The Apache process must have permission to create and write the file.
+
+The normal Apache error log is not replaced.
+
+## Request handling
+
+When a configured limit is exceeded, `mod_protect` rejects the request with HTTP status `429 Too Many Requests`.
+
+Concurrent limits apply to active HTTP requests. They are not TCP connection limits and are not rate limits.
+
+Concurrent limits are evaluated using the Apache scoreboard.
+
+Rate limits use fixed time windows. The configured number of requests is allowed during the window; the next request is rejected.
+
+Concurrent and rate limits are independent and can be used together.
+
+## Rate limiting
+
+Rate counters are shared between Apache worker processes using APR shared memory and a process-shared mutex.
+
+The module uses:
+
+```text
+logs/protect-rates.shm
+logs/protect-rates.lock
+```
+
+There are 16384 entries per rate-limit category.
+
+Rate-limit keys use FNV-1a 64-bit hashing with linear probing.
+
+If the rate-limit table is full, the module fails open.
+
+## Concurrent request accounting
+
+Concurrent request limits use the Apache scoreboard as the source of truth.
+
+The module uses Apache's public scoreboard API. It does not maintain a separate concurrent-request counter and does not poll `/server-status`.
+
+The Apache scoreboard is created and maintained by Apache.
+
+## Configuration example
+
+```apache
+LoadModule status_module modules/mod_status.so
 LoadModule protect_module modules/mod_protect.so
 
 ProtectMaxConcurrentPerIP 20
 ProtectMaxConcurrentPerVHost 80
 
-# Optional additional log containing only requests rejected by mod_protect.
-# The Apache user must be able to write this file.
-ProtectLog /var/log/apache2/protect.log
-```
-
-The concurrent limits apply to active HTTP requests, not TCP connections. The Apache scoreboard is checked at request fixup time. A request is rejected with HTTP 429 when the configured limit would be exceeded. With a limit of 20, requests 1–20 are allowed and the 21st active request is rejected.
-
-For concurrent accounting, the module counts only scoreboard workers in `SERVER_BUSY_READ`, `SERVER_BUSY_WRITE`, or `SERVER_BUSY_DNS` state. Keepalive, logging, closing, ready, and other non-active states are not counted. `ProtectMaxConcurrentPerIP` counts active requests from the effective client IP; `ProtectMaxConcurrentPerVHost` counts active requests for the current virtual host.
-
-`ProtectLog` is optional. When configured, every request rejected by a concurrent or request-rate limit is also appended to that file. The normal Apache error log is still used as before.
-
-Request-rate protection uses per-client-IP counters:
-
-```apache
 ProtectURICount 20
 ProtectURIInterval 1
 
 ProtectURIDynamicCount 10
 ProtectURIDynamicInterval 1
 
-ProtectSiteCount 100
-ProtectSiteInterval 1
+ProtectSiteCount 500
+ProtectSiteInterval 5
+
+ProtectLog /var/log/apache2/protect.log
 ```
 
-## Design
+## Build
 
-Concurrent request accounting is based on the Apache scoreboard and uses the public `ap_copy_scoreboard_worker()` API. No TCP connection counting and no HTTP polling of `/server-status` are used.
+Build using `apxs`:
 
-Rate limits use shared memory protected by a process-shared mutex, so counters are shared across Apache worker processes. `ProtectURICount` uses Apache's normalized URI (`r->uri`), without the query string. `ProtectURIDynamicCount` adds a separate limit for dynamic handlers. The rate window is fixed: the configured number of requests is allowed and the next request is rejected with HTTP 429. `ProtectURICount` and `ProtectURIDynamicCount` are keyed by effective client IP and normalized URI; `ProtectSiteCount` is keyed by effective client IP and virtual host. The query string is not part of the URI key.
+```sh
+apxs -c -I. mod_protect.c protect_scoreboard.c protect_rate.c
+```
 
-Dynamic request classification uses the Apache request handler rather than URL suffixes. It includes CGI, FCGI, proxy/FCGI handlers, and mod_php handlers such as `application/x-httpd-php`.
+Install:
+
+```sh
+apxs -i -a mod_protect.la
+```
+
+Or use the included `Makefile`:
+
+```sh
+make
+make install
+```
+
+## Files
+
+```text
+mod_protect.c
+protect_scoreboard.c
+protect_scoreboard.h
+protect_rate.c
+protect_rate.h
+Makefile
+```
+
+## Response
+
+Requests rejected by `mod_protect` receive HTTP status `429 Too Many Requests`.
+
+The module does not generate a response body.
