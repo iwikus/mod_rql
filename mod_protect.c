@@ -129,7 +129,7 @@ static void protect_log_event(request_rec *r, const char *type,
         return;
     }
 
-    line = apr_psprintf(r->pool, "[%s] %s\n", type, message);
+    line = apr_psprintf(r->pool, "[%s] [%s] %s\n", type, ap_get_server_version(), message);
     p = line;
     len = strlen(line);
 
@@ -154,6 +154,9 @@ static int protect_fixups(request_rec *r)
     protect_scoreboard_counts counts;
     int rv;
     int rate_limited = 0;
+    const char *rate_reason = NULL;
+    unsigned long rate_count = 0;
+    long rate_limit = 0;
 
     if (!r->connection || !r->useragent_ip ||
         !ap_is_initial_req(r)) {
@@ -185,11 +188,11 @@ static int protect_fixups(request_rec *r)
 
             {
                 char *message = apr_psprintf(r->pool,
-                    "ip=%s vhost=%s ip=%lu vhost=%lu uri=%s",
+                    "ip=%s vhost=%s ip=%lu/%ld vhost=%lu/%ld reason=%s uri=%s",
                     r->useragent_ip,
                     r->server->server_hostname ?
                         r->server->server_hostname : "-",
-                    counts.ip, counts.vhost, r->uri ? r->uri : "-");
+                    counts.ip, cfg->max_concurrent_ip, counts.vhost, cfg->max_concurrent_vhost, ((cfg->max_concurrent_ip && counts.ip > (unsigned long)cfg->max_concurrent_ip) && (cfg->max_concurrent_vhost && counts.vhost > (unsigned long)cfg->max_concurrent_vhost)) ? "ip,vhost" : (cfg->max_concurrent_ip && counts.ip > (unsigned long)cfg->max_concurrent_ip) ? "ip" : "vhost", r->uri ? r->uri : "-");
                 protect_log_event(r, "concurrent", message);
             }
 
@@ -199,7 +202,7 @@ static int protect_fixups(request_rec *r)
 
     if (cfg->rate.uri_count || cfg->rate.uri_dynamic_count ||
         cfg->rate.site_count) {
-        rv = protect_rate_check(r, &cfg->rate, &rate_limited);
+        rv = protect_rate_check(r, &cfg->rate, &rate_limited, &rate_reason, &rate_count, &rate_limit);
         if (rv == OK && rate_limited) {
             ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(10006)
                           "mod_protect: request rate limit exceeded: "
@@ -209,11 +212,11 @@ static int protect_fixups(request_rec *r)
 
             {
                 char *message = apr_psprintf(r->pool,
-                    "ip=%s vhost=%s uri=%s",
+                    "ip=%s vhost=%s uri=%s count=%lu/%ld reason=%s",
                     r->useragent_ip,
                     r->server->server_hostname ?
                         r->server->server_hostname : "-",
-                    r->uri ? r->uri : "-");
+                    r->uri ? r->uri : "-", rate_count, rate_limit, rate_reason ? rate_reason : "-");
                 protect_log_event(r, "rate", message);
             }
             return HTTP_TOO_MANY_REQUESTS;
