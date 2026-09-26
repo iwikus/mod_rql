@@ -19,6 +19,7 @@ typedef struct {
     long max_concurrent_vhost;
     protect_rate_config rate;
     const char *protect_log;
+    apr_file_t *protect_log_file;
 } protect_config;
 
 static void *protect_create_server_config(apr_pool_t *p, server_rec *s)
@@ -34,6 +35,7 @@ static void *protect_create_server_config(apr_pool_t *p, server_rec *s)
     cfg->rate.site_count = 0;
     cfg->rate.site_interval = 0;
     cfg->protect_log = NULL;
+    cfg->protect_log_file = NULL;
     return cfg;
 }
 
@@ -49,6 +51,7 @@ static void *protect_merge_server_config(apr_pool_t *p, void *basev, void *overv
 
     cfg->protect_log = over->protect_log ?
         over->protect_log : base->protect_log;
+    cfg->protect_log_file = NULL;
 
     return cfg;
 }
@@ -113,25 +116,13 @@ static void protect_log_event(request_rec *r, const char *type,
                               const char *message)
 {
     protect_config *cfg;
-    apr_file_t *file;
-    apr_status_t rv;
 
     cfg = ap_get_module_config(r->server->module_config, &protect_module);
-    if (!cfg->protect_log) {
+    if (!cfg->protect_log_file) {
         return;
     }
 
-    rv = apr_file_open(&file, cfg->protect_log,
-                       APR_WRITE | APR_APPEND | APR_CREATE,
-                       APR_OS_DEFAULT, r->pool);
-    if (rv != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, r, APLOGNO(10007)
-                      "mod_protect: unable to open ProtectLog");
-        return;
-    }
-
-    apr_file_printf(file, "[%s] %s\n", type, message);
-    apr_file_close(file);
+    apr_file_printf(cfg->protect_log_file, "[%s] %s\n", type, message);
 }
 
 static int protect_fixups(request_rec *r)
@@ -250,8 +241,39 @@ static const command_rec protect_cmds[] = {
     { NULL }
 };
 
+static int protect_open_logs(apr_pool_t *pconf, apr_pool_t *plog,
+                              apr_pool_t *ptemp, server_rec *s)
+{
+    server_rec *srv;
+
+    (void)plog;
+    (void)ptemp;
+
+    for (srv = s; srv; srv = srv->next) {
+        protect_config *cfg;
+        apr_status_t rv;
+
+        cfg = ap_get_module_config(srv->module_config, &protect_module);
+        if (!cfg->protect_log) {
+            continue;
+        }
+
+        rv = apr_file_open(&cfg->protect_log_file, cfg->protect_log,
+                           APR_WRITE | APR_APPEND | APR_CREATE,
+                           APR_OS_DEFAULT, pconf);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, rv, srv, APLOGNO(10007)
+                         "mod_protect: unable to open ProtectLog");
+            cfg->protect_log_file = NULL;
+        }
+    }
+
+    return OK;
+}
+
 static void protect_register_hooks(apr_pool_t *p)
 {
+    ap_hook_open_logs(protect_open_logs, NULL, NULL, APR_HOOK_MIDDLE);
     ap_hook_post_config(protect_rate_post_config, NULL, NULL, APR_HOOK_MIDDLE);
     ap_hook_fixups(protect_fixups, NULL, NULL, APR_HOOK_LAST);
     (void)p;
