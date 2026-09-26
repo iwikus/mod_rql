@@ -7,6 +7,7 @@
 #include "apr_file_io.h"
 
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
 
 #include "protect_scoreboard.h"
@@ -19,7 +20,7 @@ typedef struct {
     long max_concurrent_vhost;
     protect_rate_config rate;
     const char *protect_log;
-    apr_file_t *protect_log_file;
+    apr_os_file_t protect_log_fd;
 } protect_config;
 
 static void *protect_create_server_config(apr_pool_t *p, server_rec *s)
@@ -35,7 +36,7 @@ static void *protect_create_server_config(apr_pool_t *p, server_rec *s)
     cfg->rate.site_count = 0;
     cfg->rate.site_interval = 0;
     cfg->protect_log = NULL;
-    cfg->protect_log_file = NULL;
+    cfg->protect_log_fd = (apr_os_file_t)-1;
     return cfg;
 }
 
@@ -51,8 +52,8 @@ static void *protect_merge_server_config(apr_pool_t *p, void *basev, void *overv
 
     cfg->protect_log = over->protect_log ?
         over->protect_log : base->protect_log;
-    cfg->protect_log_file = over->protect_log_file ?
-        over->protect_log_file : base->protect_log_file;
+    cfg->protect_log_fd = over->protect_log_fd != (apr_os_file_t)-1 ?
+        over->protect_log_fd : base->protect_log_fd;
 
     return cfg;
 }
@@ -119,11 +120,14 @@ static void protect_log_event(request_rec *r, const char *type,
     protect_config *cfg;
 
     cfg = ap_get_module_config(r->server->module_config, &protect_module);
-    if (!cfg->protect_log_file) {
+    if (cfg->protect_log_fd == (apr_os_file_t)-1) {
         return;
     }
 
-    apr_file_printf(cfg->protect_log_file, "[%s] %s\n", type, message);
+    {
+        char *line = apr_psprintf(r->pool, "[%s] %s\n", type, message);
+        (void)write(cfg->protect_log_fd, line, strlen(line));
+    }
 }
 
 static int protect_fixups(request_rec *r)
@@ -206,12 +210,15 @@ static const char *protect_set_log(cmd_parms *cmd, void *dummy,
 {
     protect_config *cfg = ap_get_module_config(cmd->server->module_config,
                                                &protect_module);
+    apr_file_t *file;
     apr_status_t rv;
+    apr_os_file_t fd;
 
     (void)dummy;
 
     cfg->protect_log = arg;
-    rv = apr_file_open(&cfg->protect_log_file, arg,
+
+    rv = apr_file_open(&file, arg,
                        APR_WRITE | APR_APPEND | APR_CREATE | APR_BINARY,
                        APR_OS_DEFAULT, cmd->pool);
     if (rv != APR_SUCCESS) {
@@ -220,6 +227,14 @@ static const char *protect_set_log(cmd_parms *cmd, void *dummy,
                             arg);
     }
 
+    rv = apr_os_file_get(&fd, file);
+    if (rv != APR_SUCCESS) {
+        return apr_psprintf(cmd->pool,
+                            "mod_protect: unable to get ProtectLog fd: %s",
+                            arg);
+    }
+
+    cfg->protect_log_fd = fd;
     return NULL;
 }
 
