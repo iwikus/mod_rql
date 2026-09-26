@@ -54,6 +54,7 @@ jobs:
 
           sudo sh -c 'cat > /etc/apache2/sites-available/protect-test.conf' <<'EOF'
           ExtendedStatus On
+          ProtectLog /tmp/protect.log
 
           <VirtualHost 127.0.0.1:8080>
               ServerName protect-test
@@ -152,6 +153,7 @@ jobs:
 
           EOF
 
+          sudo rm -f /tmp/protect.log
           sudo sed -i 's/^Listen 80$/Listen 80\nListen 8080/' /etc/apache2/ports.conf
           sudo a2dissite 000-default
           sudo a2ensite protect-test
@@ -274,6 +276,13 @@ jobs:
 
           conn.close()
           PY
+
+      - name: Test ProtectLog
+        run: |
+          set -e
+          test -f /tmp/protect.log
+          sudo grep -q '^\[concurrent\] ip=' /tmp/protect.log
+          sudo grep -q '^\[rate\] ip=' /tmp/protect.log
 
       - name: ApacheBench basic smoke test
         run: |
