@@ -320,13 +320,36 @@ static int protect_post_config(apr_pool_t *pconf, apr_pool_t *plog,
         protect_config *cfg =
             ap_get_module_config(srv->module_config, &protect_module);
 
-        if (cfg->max_concurrent_ip || cfg->max_concurrent_vhost) {
-            if (!ap_extended_status) {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, srv, APLOGNO(10008)
-                             "mod_protect: ExtendedStatus is disabled; "
-                             "concurrent request limits may not work");
-            }
-            break;
+        if (cfg->max_concurrent_ip || cfg->max_concurrent_vhost ||
+            cfg->rate.uri_count || cfg->rate.uri_dynamic_count ||
+            cfg->rate.site_count) {
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, srv, APLOGNO(10009)
+                         "mod_protect: vhost=%s concurrent_ip=%s "
+                         "concurrent_vhost=%s uri=%s dynamic=%s site=%s",
+                         srv->server_hostname ? srv->server_hostname : "-",
+                         cfg->max_concurrent_ip ?
+                             apr_psprintf(pconf, "%ld", cfg->max_concurrent_ip) : "off",
+                         cfg->max_concurrent_vhost ?
+                             apr_psprintf(pconf, "%ld", cfg->max_concurrent_vhost) : "off",
+                         (cfg->rate.uri_count && cfg->rate.uri_interval) ?
+                             apr_psprintf(pconf, "%ld/%ld",
+                                          cfg->rate.uri_count, cfg->rate.uri_interval) : "off",
+                         (cfg->rate.uri_dynamic_count &&
+                          cfg->rate.uri_dynamic_interval) ?
+                             apr_psprintf(pconf, "%ld/%ld",
+                                          cfg->rate.uri_dynamic_count,
+                                          cfg->rate.uri_dynamic_interval) : "off",
+                         (cfg->rate.site_count && cfg->rate.site_interval) ?
+                             apr_psprintf(pconf, "%ld/%ld",
+                                          cfg->rate.site_count,
+                                          cfg->rate.site_interval) : "off");
+        }
+
+        if ((cfg->max_concurrent_ip || cfg->max_concurrent_vhost) &&
+            !ap_extended_status) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, srv, APLOGNO(10008)
+                         "mod_protect: ExtendedStatus is disabled; "
+                         "concurrent request limits may not work");
         }
     }
 
